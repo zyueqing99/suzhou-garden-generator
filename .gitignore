@@ -2,7 +2,7 @@ node_modules/
 dist/
 .playwright-cli/
 output/
-.worktrees/
+.worktrees
 
 .DS_Store
 *.log
