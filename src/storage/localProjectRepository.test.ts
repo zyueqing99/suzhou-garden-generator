@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDefaultProject } from '../domain/project';
+import { createDefaultProject, type GardenProject } from '../domain/project';
 import { createLocalProjectRepository } from './localProjectRepository';
 
 const store = new Map<string, string>();
@@ -49,5 +49,31 @@ describe('createLocalProjectRepository', () => {
 
     expect(await repository.load(project.id)).toBeNull();
     expect(await repository.list()).toEqual([]);
+  });
+
+  it('preserves site markup and requirement confirmation data', async () => {
+    const repository = createLocalProjectRepository('test-projects');
+    const project: GardenProject = {
+      ...createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 9, name: 'Site Project' }),
+      siteImage: { name: 'site.png', url: 'data:image/png;base64,abc' },
+      siteMarkup: {
+        boundary: [{ x: 12, y: 18 }],
+        buildingFootprint: [{ x: 44, y: 28 }],
+        mainEntrance: { kind: 'mainEntrance' as const, point: { x: 15, y: 82 } },
+      },
+      requirementConfirmation: {
+        functionalNeeds: '接待与游赏',
+        stylePreference: '典雅厅堂',
+        landscapeElements: '水院为核',
+        waterRatio: '38%',
+        rockRatio: '46%',
+        structureTypes: '厅堂、连廊、景亭',
+        plantPreference: '松、竹、枫',
+      },
+    };
+
+    await repository.save(project);
+
+    expect(await repository.load(project.id)).toEqual(project);
   });
 });
