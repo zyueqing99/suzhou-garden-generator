@@ -61,4 +61,17 @@ describe('siteAnalysis', () => {
     expect(withEntrance.mainEntrance).toEqual(createSiteMarker('mainEntrance', { x: 0, y: 84 }));
     expect(clearSiteMarkupByTool(withEntrance, 'boundary').boundary).toEqual([]);
   });
+
+  it('does not add more boundary points after the site boundary is confirmed', () => {
+    const markup: SiteMarkup = {
+      boundary: [
+        { x: 10, y: 10 },
+        { x: 80, y: 10 },
+        { x: 80, y: 80 },
+      ],
+      buildingFootprint: [],
+    };
+
+    expect(appendSiteMarkupPoint(markup, 'boundary', { x: 10, y: 80 })).toEqual(markup);
+  });
 });

@@ -30,6 +30,10 @@ textarea {
   min-height: 100vh;
 }
 
+.app-shell:has(.project-history.collapsed) {
+  grid-template-columns: 72px 360px minmax(0, 1fr);
+}
+
 .project-history {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -45,6 +49,15 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.project-history.collapsed {
+  padding-inline: 16px;
+}
+
+.project-history.collapsed .project-history-header {
+  flex-direction: column;
+  justify-content: start;
 }
 
 .project-history-header button {
@@ -377,7 +390,10 @@ button:hover {
 .preview-canvas {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(300px, 0.9fr) minmax(280px, 0.72fr) minmax(0, 1fr);
+  grid-template-areas:
+    "site analysis"
+    "ai svg";
+  grid-template-columns: minmax(440px, 1.35fr) minmax(300px, 0.65fr);
   gap: 14px;
   padding: 16px;
   background: #f2eee4;
@@ -398,6 +414,22 @@ button:hover {
 .site-markup-panel,
 .analysis-panel {
   align-content: start;
+}
+
+.site-markup-panel {
+  grid-area: site;
+}
+
+.analysis-panel {
+  grid-area: analysis;
+}
+
+.ai-image-panel {
+  grid-area: ai;
+}
+
+.svg-baseline-panel {
+  grid-area: svg;
 }
 
 .panel-title-row {
@@ -429,7 +461,7 @@ button:hover {
   display: grid;
   place-items: center;
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 10;
   overflow: hidden;
   color: #696657;
   text-align: center;
@@ -456,6 +488,12 @@ button:hover {
 .site-placeholder span {
   max-width: 26em;
   line-height: 1.55;
+}
+
+.site-edit-hint {
+  color: #575448;
+  font-size: 0.84rem;
+  line-height: 1.5;
 }
 
 .site-markup-overlay {
@@ -597,7 +635,7 @@ button:hover {
   display: grid;
   place-items: center;
   gap: 12px;
-  min-height: min(62vh, 620px);
+  min-height: 320px;
   padding: 24px;
   color: #696657;
   text-align: center;
@@ -654,6 +692,10 @@ button:hover {
     grid-template-columns: 240px minmax(0, 1fr);
   }
 
+  .app-shell:has(.project-history.collapsed) {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
   .project-history {
     grid-row: span 2;
   }
@@ -665,12 +707,21 @@ button:hover {
 
 @media (max-width: 1100px) {
   .preview-canvas {
+    grid-template-areas:
+      "site"
+      "analysis"
+      "ai"
+      "svg";
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 920px) {
   .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell:has(.project-history.collapsed) {
     grid-template-columns: 1fr;
   }
 
@@ -683,6 +734,15 @@ button:hover {
   .project-history {
     grid-row: auto;
     max-height: 320px;
+  }
+
+  .project-history.collapsed {
+    max-height: none;
+  }
+
+  .project-history.collapsed .project-history-header {
+    flex-direction: row;
+    justify-content: flex-start;
   }
 
   .actions {

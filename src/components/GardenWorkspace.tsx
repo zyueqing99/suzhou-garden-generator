@@ -95,6 +95,8 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
       updatedAt: new Date().toISOString(),
     });
   };
+  const canAddActiveMarkupPoint = activeTool !== 'boundary' || siteAnalysis.siteBoundary !== '已确认';
+  const activeSiteEditHint = canAddActiveMarkupPoint ? activeToolHint[activeTool] : '地块边界已确认。如需重绘，请先清除当前标记。';
 
   const handleSiteUpload = (file: File | undefined) => {
     if (!file) {
@@ -111,7 +113,7 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
   };
 
   const handleSiteCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!project.siteImage || !siteCanvasRef.current) {
+    if (!project.siteImage || !siteCanvasRef.current || !canAddActiveMarkupPoint) {
       return;
     }
 
@@ -121,6 +123,18 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
       y: ((event.clientY - rect.top) / rect.height) * 100,
     });
     updateSiteMarkup(appendSiteMarkupPoint(siteMarkup, activeTool, point));
+  };
+
+  const handleSiteCanvasKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    event.preventDefault();
+    if (!canAddActiveMarkupPoint) {
+      return;
+    }
+    updateSiteMarkup(appendSiteMarkupPoint(siteMarkup, activeTool, { x: 50, y: 50 }));
   };
 
   const clearActiveMarkup = () => {
@@ -350,7 +364,15 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
               <span>{activeToolLabel[activeTool]}</span>
             </div>
             {project.siteImage ? (
-              <div ref={siteCanvasRef} className="site-canvas" role="button" tabIndex={0} onClick={handleSiteCanvasClick}>
+              <div
+                ref={siteCanvasRef}
+                className="site-canvas"
+                role="button"
+                tabIndex={0}
+                aria-label={canAddActiveMarkupPoint ? `${activeToolLabel[activeTool]}，在地块图上点击添加标记点` : '地块边界已确认'}
+                onClick={handleSiteCanvasClick}
+                onKeyDown={handleSiteCanvasKeyDown}
+              >
                 <img src={project.siteImage.url} alt="当前上传的地块图" />
                 <SiteMarkupOverlay markup={siteMarkup} />
               </div>
@@ -361,6 +383,7 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
                 <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleSiteUpload(event.target.files?.[0])} />
               </label>
             )}
+            <p className="site-edit-hint">{activeSiteEditHint}</p>
           </section>
 
           <section className="analysis-panel" aria-label="场地解析与需求确认">
@@ -368,9 +391,6 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
             <RequirementCard confirmation={requirementConfirmation} onChange={updateRequirement} />
           </section>
 
-          <section className="svg-baseline-panel" aria-label="规则方案基线预览">
-            <GardenPreview plan={plan} svgRef={svgRef} />
-          </section>
           <section className="ai-image-panel" aria-label="AI 图像结果">
             {aiImageUrl ? (
               <img src={aiImageUrl} alt={`${plan.name} AI 生成图`} />
@@ -383,6 +403,10 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
             <div className="ai-panel-footer">
               <p>{aiStatus}</p>
             </div>
+          </section>
+
+          <section className="svg-baseline-panel" aria-label="规则方案基线预览">
+            <GardenPreview plan={plan} svgRef={svgRef} />
           </section>
         </div>
         <footer className="summary-strip">
@@ -400,6 +424,23 @@ const activeToolLabel: Record<SiteMarkupTool, string> = {
   buildingFootprint: '绘制建筑轮廓',
   mainEntrance: '标记主入口',
   mainViewSide: '标记建筑主观景面',
+};
+
+const activeToolHint: Record<SiteMarkupTool, string> = {
+  boundary: '在地块图上点击添加边界点，至少 3 个点可确认边界。',
+  buildingFootprint: '在地块图上点击添加建筑轮廓点，至少 3 个点可确认轮廓。',
+  mainEntrance: '在地块图上点击一次标记主入口位置。',
+  mainViewSide: '在地块图上点击一次标记建筑主观景面。',
+};
+
+const siteAnalysisLabels: Record<keyof SiteAnalysisData, string> = {
+  siteBoundary: '地块边界',
+  buildingFootprint: '建筑轮廓',
+  mainEntrance: '主入口',
+  mainViewSide: '建筑主观景面',
+  neighborInterface: '相邻界面',
+  borrowedViewDirection: '借景方向',
+  screeningRequired: '需遮挡方向',
 };
 
 const requirementLabels: Record<RequirementConfirmationKey, string> = {
@@ -442,7 +483,7 @@ function pointsToAttribute(points: SitePoint[]) {
 
 function ToolButton({ icon, label, active, onClick }: { icon: ReactNode; label: string; active: boolean; onClick: () => void }) {
   return (
-    <button className={active ? 'tool-button active' : 'tool-button'} type="button" onClick={onClick}>
+    <button className={active ? 'tool-button active' : 'tool-button'} type="button" aria-pressed={active} onClick={onClick}>
       {icon}
       {label}
     </button>
@@ -450,7 +491,7 @@ function ToolButton({ icon, label, active, onClick }: { icon: ReactNode; label: 
 }
 
 function DataCard({ title, data }: { title: string; data: SiteAnalysisData }) {
-  const rows: Array<[string, string]> = [
+  const rows: Array<[keyof SiteAnalysisData, string]> = [
     ['siteBoundary', data.siteBoundary],
     ['buildingFootprint', data.buildingFootprint],
     ['mainEntrance', data.mainEntrance],
@@ -466,7 +507,7 @@ function DataCard({ title, data }: { title: string; data: SiteAnalysisData }) {
       <dl>
         {rows.map(([key, value]) => (
           <div key={key}>
-            <dt>{key}</dt>
+            <dt>{siteAnalysisLabels[key]}</dt>
             <dd>{value}</dd>
           </div>
         ))}
