@@ -1,10 +1,28 @@
-import { Download, FileJson, ImageDown, ImagePlus, Images, RefreshCw, WandSparkles, X } from 'lucide-react';
+import { Building2, Download, FileJson, ImageDown, ImagePlus, Images, Map, MousePointer2, RefreshCw, ScanLine, WandSparkles, X } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildAiImageRequest, buildImagePrompt, normalizeUnknownGenerationError, requestAiImage, type AiImageMode } from '../aiImageClient';
 import type { GardenProject, ImageGeneration } from '../domain/project';
 import { downloadJson, downloadPng, downloadSvg } from '../exporters';
 import { GardenPreview } from '../GardenPreview';
 import { generateGardenPlan, type BuildingStyle, type FocalPoint, type GardenParameters } from '../gardenGenerator';
+import {
+  resolveRequirementConfirmation,
+  updateRequirementConfirmation,
+  type RequirementConfirmation,
+  type RequirementConfirmationKey,
+} from '../requirementConfirmation';
+import {
+  appendSiteMarkupPoint,
+  clearSiteMarkupByTool,
+  createSiteAnalysis,
+  emptySiteMarkup,
+  normalizeSitePoint,
+  type SiteAnalysisData,
+  type SiteMarkup,
+  type SiteMarkupTool,
+  type SitePoint,
+} from '../siteAnalysis';
 import { ErrorNotice } from './ErrorNotice';
 
 interface GardenWorkspaceProps {
@@ -18,8 +36,16 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
   const [aiImageUrl, setAiImageUrl] = useState<string | null>(project.generations.find((generation) => generation.imageUrl)?.imageUrl ?? null);
   const [aiStatus, setAiStatus] = useState('AI 图像尚未生成');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [activeTool, setActiveTool] = useState<SiteMarkupTool>('boundary');
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const siteCanvasRef = useRef<HTMLDivElement | null>(null);
   const plan = useMemo(() => generateGardenPlan(project.parameters, project.seed), [project.parameters, project.seed]);
+  const siteMarkup = project.siteMarkup ?? emptySiteMarkup;
+  const siteAnalysis = useMemo(() => createSiteAnalysis(siteMarkup), [siteMarkup]);
+  const requirementConfirmation = useMemo(
+    () => resolveRequirementConfirmation(project.parameters, project.requirementConfirmation),
+    [project.parameters, project.requirementConfirmation],
+  );
   const latestError = project.generations.find((generation) => generation.status === 'failed' && generation.error)?.error;
 
   useEffect(() => {
@@ -45,15 +71,32 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
     });
   };
 
-  const updateReferenceImage = (referenceImage: GardenProject['referenceImage']) => {
+  const updateSiteImage = (siteImage: GardenProject['siteImage']) => {
     onProjectChange({
       ...project,
-      referenceImage,
+      siteImage,
+      siteMarkup: siteImage ? (project.siteMarkup ?? emptySiteMarkup) : undefined,
       updatedAt: new Date().toISOString(),
     });
   };
 
-  const handleReferenceUpload = (file: File | undefined) => {
+  const updateSiteMarkup = (siteMarkup: SiteMarkup) => {
+    onProjectChange({
+      ...project,
+      siteMarkup,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const updateRequirement = (key: RequirementConfirmationKey, value: string) => {
+    onProjectChange({
+      ...project,
+      requirementConfirmation: updateRequirementConfirmation(requirementConfirmation, key, value),
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const handleSiteUpload = (file: File | undefined) => {
     if (!file) {
       return;
     }
@@ -61,10 +104,27 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        updateReferenceImage({ name: file.name, url: reader.result });
+        updateSiteImage({ name: file.name, url: reader.result });
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleSiteCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!project.siteImage || !siteCanvasRef.current) {
+      return;
+    }
+
+    const rect = siteCanvasRef.current.getBoundingClientRect();
+    const point = normalizeSitePoint({
+      x: ((event.clientX - rect.left) / rect.width) * 100,
+      y: ((event.clientY - rect.top) / rect.height) * 100,
+    });
+    updateSiteMarkup(appendSiteMarkupPoint(siteMarkup, activeTool, point));
+  };
+
+  const clearActiveMarkup = () => {
+    updateSiteMarkup(clearSiteMarkupByTool(siteMarkup, activeTool));
   };
 
   const handleGenerate = () => {
@@ -80,19 +140,19 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
 
   const handleAiGenerate = async (mode: AiImageMode) => {
     setIsGeneratingImage(true);
-    setAiStatus(mode === 'edit' ? '正在编辑当前 AI 图像...' : project.referenceImage ? '正在参考上传底稿生成图像...' : '正在调用 gpt-image-2 生成图像...');
+    setAiStatus(mode === 'edit' ? '正在编辑当前 AI 图像...' : project.siteImage ? '正在参考上传地块图生成图像...' : '正在调用 gpt-image-2 生成图像...');
 
     const basePrompt = buildImagePrompt(plan, project.parameters, project.customPrompt);
     const prompt =
       mode === 'edit'
         ? `${basePrompt}\nRefine the existing image while preserving the Suzhou garden concept and improving landscape readability.`
-        : project.referenceImage
-          ? `${basePrompt}\nUse the uploaded reference image as the base drawing or visual constraint while applying the garden parameters and style direction.`
+        : project.siteImage
+          ? `${basePrompt}\nUse the uploaded site parcel image and the confirmed site analysis as drawing constraints.\nSite analysis JSON: ${JSON.stringify(siteAnalysis)}\nRequirement confirmation JSON: ${JSON.stringify(requirementConfirmation)}`
           : basePrompt;
     const request = buildAiImageRequest({
       mode,
       prompt,
-      referenceImageUrl: project.referenceImage?.url,
+      referenceImageUrl: project.siteImage?.url,
       currentImageUrl: aiImageUrl,
     });
 
@@ -100,7 +160,7 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
       const result = await requestAiImage(request);
       setAiImageUrl(result.imageUrl);
       setStatus('右侧正在展示 gpt-image-2 图像结果');
-      setAiStatus(mode === 'edit' ? 'AI 图像编辑完成' : project.referenceImage ? '参考图生成完成' : 'AI 图像生成完成');
+      setAiStatus(mode === 'edit' ? 'AI 图像编辑完成' : project.siteImage ? '地块图约束生成完成' : 'AI 图像生成完成');
       onGenerationAdded({
         id: `generation-${Date.now()}`,
         projectId: project.id,
@@ -180,14 +240,14 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
         </section>
 
         <section className="control-section">
-          <h2>底稿 / 参考图</h2>
+          <h2>地块图</h2>
           <div className="reference-uploader">
-            {project.referenceImage ? (
+            {project.siteImage ? (
               <div className="reference-preview">
-                <img src={project.referenceImage.url} alt="上传的底稿或参考图" />
+                <img src={project.siteImage.url} alt="上传的地块图" />
                 <div>
-                  <span>{project.referenceImage.name}</span>
-                  <button type="button" onClick={() => updateReferenceImage(undefined)}>
+                  <span>{project.siteImage.name}</span>
+                  <button type="button" onClick={() => updateSiteImage(undefined)}>
                     <X size={16} aria-hidden="true" />
                     移除
                   </button>
@@ -196,11 +256,40 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
             ) : (
               <label className="upload-dropzone">
                 <ImagePlus size={22} aria-hidden="true" />
-                <span>上传底稿/参考图</span>
-                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleReferenceUpload(event.target.files?.[0])} />
+                <span>上传地块图</span>
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleSiteUpload(event.target.files?.[0])} />
               </label>
             )}
           </div>
+        </section>
+
+        <section className="control-section">
+          <h2>标记工具</h2>
+          <div className="tool-grid" role="group" aria-label="地块图标记工具">
+            <ToolButton icon={<Map size={17} aria-hidden="true" />} label="绘制地块边界" active={activeTool === 'boundary'} onClick={() => setActiveTool('boundary')} />
+            <ToolButton
+              icon={<Building2 size={17} aria-hidden="true" />}
+              label="绘制建筑轮廓"
+              active={activeTool === 'buildingFootprint'}
+              onClick={() => setActiveTool('buildingFootprint')}
+            />
+            <ToolButton
+              icon={<MousePointer2 size={17} aria-hidden="true" />}
+              label="标记主入口"
+              active={activeTool === 'mainEntrance'}
+              onClick={() => setActiveTool('mainEntrance')}
+            />
+            <ToolButton
+              icon={<ScanLine size={17} aria-hidden="true" />}
+              label="标记建筑主观景面"
+              active={activeTool === 'mainViewSide'}
+              onClick={() => setActiveTool('mainViewSide')}
+            />
+          </div>
+          <button type="button" onClick={clearActiveMarkup}>
+            <X size={16} aria-hidden="true" />
+            清除当前标记
+          </button>
         </section>
 
         {latestError ? <ErrorNotice error={latestError} /> : null}
@@ -252,6 +341,33 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
           </div>
         </header>
         <div className="preview-canvas">
+          <section className="site-markup-panel" aria-label="地块图标记工作区">
+            <div className="panel-title-row">
+              <div>
+                <p className="eyebrow">Site Markup</p>
+                <h3>地块图标记</h3>
+              </div>
+              <span>{activeToolLabel[activeTool]}</span>
+            </div>
+            {project.siteImage ? (
+              <div ref={siteCanvasRef} className="site-canvas" role="button" tabIndex={0} onClick={handleSiteCanvasClick}>
+                <img src={project.siteImage.url} alt="当前上传的地块图" />
+                <SiteMarkupOverlay markup={siteMarkup} />
+              </div>
+            ) : (
+              <label className="site-placeholder">
+                <ImagePlus size={34} aria-hidden="true" />
+                <span>上传地块图后，可在图上绘制边界、建筑轮廓并标记入口与主观景面</span>
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleSiteUpload(event.target.files?.[0])} />
+              </label>
+            )}
+          </section>
+
+          <section className="analysis-panel" aria-label="场地解析与需求确认">
+            <DataCard title="场地解析数据" data={siteAnalysis} />
+            <RequirementCard confirmation={requirementConfirmation} onChange={updateRequirement} />
+          </section>
+
           <section className="svg-baseline-panel" aria-label="规则方案基线预览">
             <GardenPreview plan={plan} svgRef={svgRef} />
           </section>
@@ -276,6 +392,106 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
         </footer>
       </section>
     </>
+  );
+}
+
+const activeToolLabel: Record<SiteMarkupTool, string> = {
+  boundary: '绘制地块边界',
+  buildingFootprint: '绘制建筑轮廓',
+  mainEntrance: '标记主入口',
+  mainViewSide: '标记建筑主观景面',
+};
+
+const requirementLabels: Record<RequirementConfirmationKey, string> = {
+  functionalNeeds: '功能需求',
+  stylePreference: '风格偏好',
+  landscapeElements: '景观元素',
+  waterRatio: '水景比例',
+  rockRatio: '山石比例',
+  structureTypes: '构筑物类型',
+  plantPreference: '植物倾向',
+};
+
+function SiteMarkupOverlay({ markup }: { markup: SiteMarkup }) {
+  return (
+    <svg className="site-markup-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polyline points={pointsToAttribute(markup.boundary)} className="site-boundary-line" />
+      <polyline points={pointsToAttribute(markup.buildingFootprint)} className="site-building-line" />
+      {markup.boundary.map((point, index) => (
+        <circle key={`boundary-${index}`} cx={point.x} cy={point.y} r="1.4" className="site-boundary-dot" />
+      ))}
+      {markup.buildingFootprint.map((point, index) => (
+        <rect key={`building-${index}`} x={point.x - 1.2} y={point.y - 1.2} width="2.4" height="2.4" className="site-building-dot" />
+      ))}
+      {markup.mainEntrance ? <circle cx={markup.mainEntrance.point.x} cy={markup.mainEntrance.point.y} r="2.4" className="site-entrance-dot" /> : null}
+      {markup.mainViewSide ? (
+        <path
+          d={`M ${markup.mainViewSide.point.x - 3} ${markup.mainViewSide.point.y + 3} L ${markup.mainViewSide.point.x} ${
+            markup.mainViewSide.point.y - 3
+          } L ${markup.mainViewSide.point.x + 3} ${markup.mainViewSide.point.y + 3} Z`}
+          className="site-view-dot"
+        />
+      ) : null}
+    </svg>
+  );
+}
+
+function pointsToAttribute(points: SitePoint[]) {
+  return points.map((point) => `${point.x},${point.y}`).join(' ');
+}
+
+function ToolButton({ icon, label, active, onClick }: { icon: ReactNode; label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button className={active ? 'tool-button active' : 'tool-button'} type="button" onClick={onClick}>
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function DataCard({ title, data }: { title: string; data: SiteAnalysisData }) {
+  const rows: Array<[string, string]> = [
+    ['siteBoundary', data.siteBoundary],
+    ['buildingFootprint', data.buildingFootprint],
+    ['mainEntrance', data.mainEntrance],
+    ['mainViewSide', data.mainViewSide],
+    ['neighborInterface', data.neighborInterface],
+    ['borrowedViewDirection', data.borrowedViewDirection],
+    ['screeningRequired', data.screeningRequired.join('、') || '待判断'],
+  ];
+
+  return (
+    <article className="data-card">
+      <h3>{title}</h3>
+      <dl>
+        {rows.map(([key, value]) => (
+          <div key={key}>
+            <dt>{key}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </article>
+  );
+}
+
+function RequirementCard({
+  confirmation,
+  onChange,
+}: {
+  confirmation: RequirementConfirmation;
+  onChange: (key: RequirementConfirmationKey, value: string) => void;
+}) {
+  return (
+    <article className="data-card requirement-card">
+      <h3>需求清单</h3>
+      {Object.entries(requirementLabels).map(([key, label]) => (
+        <label className="requirement-field" key={key}>
+          <span>{label}</span>
+          <input value={confirmation[key as RequirementConfirmationKey]} onChange={(event) => onChange(key as RequirementConfirmationKey, event.target.value)} />
+        </label>
+      ))}
+    </article>
   );
 }
 
