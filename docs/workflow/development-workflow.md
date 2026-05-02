@@ -15,3 +15,15 @@ Commit style:
 - `fix: ...`
 - `test: ...`
 - `chore: ...`
+
+## Required Verification Before Completion
+
+Run these commands before claiming implementation work is complete:
+
+```bash
+npm test
+npm run typecheck
+npm run build
+```
+
+Do not commit generated `dist/`, local `.env*`, screenshots, or provider responses.
