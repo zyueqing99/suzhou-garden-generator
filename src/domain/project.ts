@@ -1,4 +1,6 @@
 import type { GardenParameters } from '../gardenGenerator';
+import type { RequirementConfirmation } from '../requirementConfirmation';
+import type { SiteMarkup } from '../siteAnalysis';
 
 export type GenerationStatus = 'pending' | 'succeeded' | 'failed';
 export type GenerationMode = 'generate' | 'edit';
@@ -46,6 +48,12 @@ export interface GardenProject {
     name: string;
     url: string;
   };
+  siteImage?: {
+    name: string;
+    url: string;
+  };
+  siteMarkup?: SiteMarkup;
+  requirementConfirmation?: RequirementConfirmation;
   generations: ImageGeneration[];
 }
 
