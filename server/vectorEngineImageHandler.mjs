@@ -4,23 +4,51 @@ loadLocalEnv();
 
 const vectorBaseUrl = process.env.VECTOR_ENGINE_BASE_URL || 'https://api.vectorengine.cn';
 const apiKey = process.env.VECTOR_ENGINE_API_KEY;
-const vectorTimeoutMs = parsePositiveInteger(process.env.VECTOR_ENGINE_TIMEOUT_MS, 120000);
+const vectorTimeoutMs = resolveVectorTimeoutMs(process.env.VECTOR_ENGINE_TIMEOUT_MS);
+const maxBodyBytes = resolveMaxBodyBytes(process.env.IMAGE_PROXY_MAX_BODY_BYTES);
+const proxyAccessToken = process.env.IMAGE_PROXY_ACCESS_TOKEN;
 
 export async function handleImageRequest(request, response) {
   try {
     if (!apiKey) {
-      sendJson(response, 500, { error: 'Missing VECTOR_ENGINE_API_KEY on local proxy server' });
+      sendProxyError(response, 500, {
+        code: 'missing_api_key',
+        message: 'Missing VECTOR_ENGINE_API_KEY on local proxy server.',
+        retryable: false,
+      });
       return;
     }
 
-    const body = await readJsonBody(request);
+    if (proxyAccessToken && request.headers.authorization !== `Bearer ${proxyAccessToken}`) {
+      sendProxyError(response, 401, {
+        code: 'invalid_request',
+        message: 'Image proxy authorization failed.',
+        retryable: false,
+      });
+      return;
+    }
+
+    const body = await readJsonBodyWithLimit(request);
     const prompt = String(body.prompt || '').trim();
     if (!prompt) {
-      sendJson(response, 400, { error: 'prompt is required' });
+      sendProxyError(response, 400, {
+        code: 'invalid_request',
+        message: 'prompt is required',
+        retryable: false,
+      });
       return;
     }
 
     const mode = body.mode === 'edit' ? 'edit' : 'generate';
+    if (mode === 'edit' && body.imageUrl && !isSafeImageUrl(body.imageUrl)) {
+      sendProxyError(response, 400, {
+        code: 'invalid_request',
+        message: 'Reference image URL is not allowed.',
+        retryable: false,
+      });
+      return;
+    }
+
     const vectorResponse =
       mode === 'edit' && body.imageUrl
         ? await requestImageEdit(body, prompt)
@@ -28,8 +56,8 @@ export async function handleImageRequest(request, response) {
 
     await forwardVectorResponse(vectorResponse, response);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown image proxy error';
-    sendJson(response, 500, { error: message });
+    const proxyError = normalizeProxyError(error);
+    sendProxyError(response, proxyError.code === 'request_too_large' ? 413 : 500, proxyError);
   }
 }
 
@@ -171,18 +199,88 @@ function parsePositiveInteger(value, fallback) {
   return Math.trunc(parsed);
 }
 
-async function readJsonBody(request) {
+export function resolveVectorTimeoutMs(value) {
+  return parsePositiveInteger(value, 300000);
+}
+
+export function resolveMaxBodyBytes(value) {
+  return parsePositiveInteger(value, 5242880);
+}
+
+export function normalizeProxyError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (error && typeof error === 'object' && 'code' in error) {
+    return error;
+  }
+
+  if (message.includes('timed out')) {
+    return {
+      code: 'provider_timeout',
+      message: 'Image generation timed out. You can retry, or export the rule-generated concept plan.',
+      retryable: true,
+    };
+  }
+
+  return {
+    code: 'unknown_error',
+    message: 'Image generation failed. The rule-generated concept plan is still available.',
+    retryable: true,
+  };
+}
+
+export function isSafeImageUrl(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  if (value.startsWith('data:image/png;base64,') || value.startsWith('data:image/jpeg;base64,') || value.startsWith('data:image/webp;base64,')) {
+    return true;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:') {
+      return false;
+    }
+
+    const hostname = url.hostname.toLowerCase();
+    return !(
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname.startsWith('10.') ||
+      hostname.startsWith('192.168.') ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function readJsonBodyWithLimit(request, limitBytes = maxBodyBytes) {
   const chunks = [];
+  let totalBytes = 0;
+
   for await (const chunk of request) {
-    chunks.push(chunk);
+    const buffer = Buffer.from(chunk);
+    totalBytes += buffer.length;
+    if (totalBytes > limitBytes) {
+      throw {
+        code: 'request_too_large',
+        message: 'The reference image is too large. Use an image under the configured limit.',
+        retryable: false,
+      };
+    }
+    chunks.push(buffer);
   }
 
   const body = Buffer.concat(chunks).toString('utf8');
-  if (!body) {
-    return {};
-  }
+  return body ? JSON.parse(body) : {};
+}
 
-  return JSON.parse(body);
+function sendProxyError(response, status, error) {
+  sendJson(response, status, { error });
 }
 
 function sendJson(response, status, payload) {

@@ -50,7 +50,7 @@ export async function requestAiImage(request: AiImageRequest): Promise<AiImageRe
 
   const payload = await readResponsePayload(response);
   if (!response.ok) {
-    throw new Error(extractErrorMessage(payload) ?? `图像生成失败：HTTP ${response.status}`);
+    throw extractGenerationError(payload) ?? new Error(extractErrorMessage(payload) ?? `图像生成失败：HTTP ${response.status}`);
   }
 
   const imageUrl = extractImageUrl(payload);
@@ -127,6 +127,30 @@ export function extractErrorMessage(payload: unknown): string | null {
 
   const message = 'message' in payload ? payload.message : undefined;
   return typeof message === 'string' ? message : null;
+}
+
+export function extractGenerationError(payload: unknown): GenerationError | null {
+  if (!payload || typeof payload !== 'object' || !('error' in payload)) {
+    return null;
+  }
+
+  const error = payload.error;
+  if (!error || typeof error !== 'object') {
+    return null;
+  }
+
+  if (
+    'code' in error &&
+    'message' in error &&
+    'retryable' in error &&
+    typeof error.code === 'string' &&
+    typeof error.message === 'string' &&
+    typeof error.retryable === 'boolean'
+  ) {
+    return error as GenerationError;
+  }
+
+  return null;
 }
 
 export function normalizeUnknownGenerationError(error: unknown): GenerationError {

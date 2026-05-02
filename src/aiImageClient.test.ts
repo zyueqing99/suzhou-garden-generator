@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildGardenImagePrompt, extractErrorMessage, extractImageUrl } from './aiImageClient';
+import { buildGardenImagePrompt, extractErrorMessage, extractGenerationError, extractImageUrl } from './aiImageClient';
 import type { GardenParameters, GardenPlan } from './gardenGenerator';
 
 const parameters: GardenParameters = {
@@ -41,5 +41,21 @@ describe('aiImageClient', () => {
     expect(extractErrorMessage({ error: 'missing key' })).toBe('missing key');
     expect(extractErrorMessage({ error: { message: 'bad prompt' } })).toBe('bad prompt');
     expect(extractErrorMessage({ message: 'rate limited' })).toBe('rate limited');
+  });
+
+  it('extracts structured generation errors from proxy responses', () => {
+    expect(
+      extractGenerationError({
+        error: {
+          code: 'provider_timeout',
+          message: 'Image generation timed out.',
+          retryable: true,
+        },
+      }),
+    ).toEqual({
+      code: 'provider_timeout',
+      message: 'Image generation timed out.',
+      retryable: true,
+    });
   });
 });
