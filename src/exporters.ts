@@ -50,6 +50,12 @@ export async function downloadPng(svgElement: SVGSVGElement, filename: string) {
   }
 }
 
+export function downloadJson(data: unknown, filename: string) {
+  const source = JSON.stringify(data, null, 2);
+  const blob = new Blob([source], { type: 'application/json;charset=utf-8' });
+  downloadBlob(blob, `${filename}.json`);
+}
+
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

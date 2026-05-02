@@ -1,0 +1,236 @@
+import { Download, FileJson, ImageDown, Images, RefreshCw, WandSparkles } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { buildGardenImagePrompt, normalizeUnknownGenerationError, requestAiImage, type AiImageMode } from '../aiImageClient';
+import type { GardenProject, ImageGeneration } from '../domain/project';
+import { downloadJson, downloadPng, downloadSvg } from '../exporters';
+import { GardenPreview } from '../GardenPreview';
+import { generateGardenPlan, type BuildingStyle, type FocalPoint, type GardenParameters } from '../gardenGenerator';
+import { ErrorNotice } from './ErrorNotice';
+
+interface GardenWorkspaceProps {
+  project: GardenProject;
+  onProjectChange: (project: GardenProject) => void;
+  onGenerationAdded: (generation: ImageGeneration) => void;
+}
+
+export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }: GardenWorkspaceProps) {
+  const [status, setStatus] = useState('规则方案已生成，可作为 AI 出图提示');
+  const [aiImageUrl, setAiImageUrl] = useState<string | null>(project.generations.find((generation) => generation.imageUrl)?.imageUrl ?? null);
+  const [aiStatus, setAiStatus] = useState('AI 图像尚未生成');
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const plan = useMemo(() => generateGardenPlan(project.parameters, project.seed), [project.parameters, project.seed]);
+  const latestError = project.generations.find((generation) => generation.status === 'failed' && generation.error)?.error;
+
+  useEffect(() => {
+    const latestImageUrl = project.generations.find((generation) => generation.imageUrl)?.imageUrl ?? null;
+    setAiImageUrl(latestImageUrl);
+    setAiStatus(latestImageUrl ? '正在展示已保存的 AI 图像' : 'AI 图像尚未生成');
+    setStatus('规则方案已生成，可作为 AI 出图提示');
+  }, [project.id, project.generations]);
+
+  const updateParameter = <K extends keyof GardenParameters>(key: K, value: GardenParameters[K]) => {
+    onProjectChange({
+      ...project,
+      updatedAt: new Date().toISOString(),
+      parameters: { ...project.parameters, [key]: value },
+    });
+  };
+
+  const handleGenerate = () => {
+    setAiImageUrl(null);
+    setStatus('已生成新的规则概念方案');
+    setAiStatus('AI 图像尚未生成');
+    onProjectChange({
+      ...project,
+      seed: project.seed + 1,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const handleAiGenerate = async (mode: AiImageMode) => {
+    setIsGeneratingImage(true);
+    setAiStatus(mode === 'edit' ? '正在编辑当前 AI 图像...' : '正在调用 gpt-image-2 生成图像...');
+
+    const prompt = buildGardenImagePrompt(plan, project.parameters);
+    const request = {
+      mode,
+      prompt:
+        mode === 'edit'
+          ? `${prompt}\nRefine the existing image while preserving the Suzhou garden concept and improving landscape readability.`
+          : prompt,
+      imageUrl: mode === 'edit' ? aiImageUrl ?? undefined : undefined,
+      size: '1536x1024',
+      quality: 'medium',
+      format: 'png',
+      n: 1,
+    };
+
+    try {
+      const result = await requestAiImage(request);
+      setAiImageUrl(result.imageUrl);
+      setStatus('右侧正在展示 gpt-image-2 图像结果');
+      setAiStatus(mode === 'edit' ? 'AI 图像编辑完成' : 'AI 图像生成完成');
+      onGenerationAdded({
+        id: `generation-${Date.now()}`,
+        projectId: project.id,
+        createdAt: new Date().toISOString(),
+        mode,
+        status: 'succeeded',
+        prompt,
+        provider: 'vectorengine',
+        model: request.mode === 'edit' ? 'gpt-image-2-all' : 'gpt-image-2',
+        imageUrl: result.imageUrl,
+      });
+    } catch (error) {
+      const generationError = normalizeUnknownGenerationError(error);
+      setAiStatus(generationError.message);
+      onGenerationAdded({
+        id: `generation-${Date.now()}`,
+        projectId: project.id,
+        createdAt: new Date().toISOString(),
+        mode,
+        status: 'failed',
+        prompt,
+        provider: 'vectorengine',
+        model: request.mode === 'edit' ? 'gpt-image-2-all' : 'gpt-image-2',
+        error: generationError,
+      });
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  const filename = `suzhou-garden-${plan.seed}`;
+
+  return (
+    <>
+      <aside className="control-panel" aria-label="参数控制面板">
+        <div className="brand-block">
+          <p className="eyebrow">Frontend MVP</p>
+          <h1>苏式庭院景观概念方案生成器</h1>
+          <p>用规则快速生成可导出的概念平面预览。</p>
+        </div>
+
+        <section className="control-section">
+          <h2>空间参数</h2>
+          <Slider label="庭院尺度" value={project.parameters.courtyardScale} onChange={(value) => updateParameter('courtyardScale', value)} />
+          <Slider label="水体占比" value={project.parameters.waterRatio} onChange={(value) => updateParameter('waterRatio', value)} />
+          <Slider label="叠石密度" value={project.parameters.rockDensity} onChange={(value) => updateParameter('rockDensity', value)} />
+          <Slider label="植物密度" value={project.parameters.plantingDensity} onChange={(value) => updateParameter('plantingDensity', value)} />
+          <Slider label="游线曲度" value={project.parameters.pathCurvature} onChange={(value) => updateParameter('pathCurvature', value)} />
+        </section>
+
+        <section className="control-section">
+          <h2>风格设定</h2>
+          <label className="field">
+            <span>建筑气质</span>
+            <select value={project.parameters.buildingStyle} onChange={(event) => updateParameter('buildingStyle', event.target.value as BuildingStyle)}>
+              <option value="classic">典雅厅堂</option>
+              <option value="compact">紧凑小筑</option>
+              <option value="scholar">书斋园居</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>核心景点</span>
+            <select value={project.parameters.focalPoint} onChange={(event) => updateParameter('focalPoint', event.target.value as FocalPoint)}>
+              <option value="pond">水院为核</option>
+              <option value="rockery">叠山为核</option>
+              <option value="pavilion">亭榭为核</option>
+            </select>
+          </label>
+        </section>
+
+        {latestError ? <ErrorNotice error={latestError} /> : null}
+
+        <div className="actions">
+          <button className="primary-action" type="button" onClick={handleGenerate}>
+            <RefreshCw size={18} aria-hidden="true" />
+            生成方案
+          </button>
+          <button type="button" onClick={() => void handleAiGenerate('generate')} disabled={isGeneratingImage}>
+            <WandSparkles size={18} aria-hidden="true" />
+            生成 AI 图像
+          </button>
+          <button type="button" onClick={() => void handleAiGenerate('edit')} disabled={isGeneratingImage || !aiImageUrl}>
+            <Images size={18} aria-hidden="true" />
+            编辑当前图像
+          </button>
+          <button type="button" onClick={() => svgRef.current && downloadSvg(svgRef.current, filename)}>
+            <Download size={18} aria-hidden="true" />
+            导出 SVG
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (svgRef.current) {
+                void downloadPng(svgRef.current, filename);
+              }
+            }}
+          >
+            <ImageDown size={18} aria-hidden="true" />
+            导出 PNG
+          </button>
+          <button type="button" onClick={() => downloadJson(project, filename)}>
+            <FileJson size={18} aria-hidden="true" />
+            导出 JSON
+          </button>
+        </div>
+      </aside>
+
+      <section className="preview-area" aria-label="苏式庭院概念平面预览">
+        <header className="preview-header">
+          <div>
+            <p className="eyebrow">概念平面预览</p>
+            <h2>{project.name}</h2>
+          </div>
+          <div className="plan-meta">
+            <span>Seed {plan.seed}</span>
+            <span>{status}</span>
+          </div>
+        </header>
+        <div className="preview-canvas">
+          <section className="svg-baseline-panel" aria-label="规则方案基线预览">
+            <GardenPreview plan={plan} svgRef={svgRef} />
+          </section>
+          <section className="ai-image-panel" aria-label="AI 图像结果">
+            {aiImageUrl ? (
+              <img src={aiImageUrl} alt={`${plan.name} AI 生成图`} />
+            ) : (
+              <div className="ai-placeholder">
+                <WandSparkles size={34} aria-hidden="true" />
+                <span>AI 图像未生成时，左侧规则方案仍可导出</span>
+              </div>
+            )}
+            <div className="ai-panel-footer">
+              <p>{aiStatus}</p>
+            </div>
+          </section>
+        </div>
+        <footer className="summary-strip">
+          {plan.summary.map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+        </footer>
+      </section>
+    </>
+  );
+}
+
+interface SliderProps {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}
+
+function Slider({ label, value, onChange }: SliderProps) {
+  return (
+    <label className="slider-row">
+      <span>
+        {label}
+        <strong>{value}%</strong>
+      </span>
+      <input type="range" min="0" max="100" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+    </label>
+  );
+}

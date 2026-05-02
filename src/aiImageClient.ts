@@ -1,3 +1,4 @@
+import type { GenerationError } from './domain/project';
 import type { GardenParameters, GardenPlan } from './gardenGenerator';
 
 export type AiImageMode = 'generate' | 'edit';
@@ -126,4 +127,16 @@ export function extractErrorMessage(payload: unknown): string | null {
 
   const message = 'message' in payload ? payload.message : undefined;
   return typeof message === 'string' ? message : null;
+}
+
+export function normalizeUnknownGenerationError(error: unknown): GenerationError {
+  if (error && typeof error === 'object' && 'code' in error && 'message' in error && 'retryable' in error) {
+    return error as GenerationError;
+  }
+
+  return {
+    code: 'unknown_error',
+    message: error instanceof Error ? error.message : 'AI 图像生成失败',
+    retryable: true,
+  };
 }
