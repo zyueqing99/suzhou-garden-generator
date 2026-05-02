@@ -9,6 +9,13 @@ describe('vite config', () => {
 
     expect(plugins.some((plugin) => plugin && 'name' in plugin && plugin.name === 'vectorengine-image-api')).toBe(true);
   });
+
+  it('excludes local worktrees from test discovery', () => {
+    const resolvedConfig = config as UserConfig;
+    const testConfig = resolvedConfig.test as { exclude?: string[] } | undefined;
+
+    expect(testConfig?.exclude).toContain('.worktrees/**');
+  });
 });
 
 function flattenPlugins(plugins: UserConfig['plugins']): PluginOption[] {

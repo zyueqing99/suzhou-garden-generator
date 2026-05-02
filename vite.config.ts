@@ -19,4 +19,7 @@ function vectorEngineImageApi(): Plugin {
 
 export default defineConfig({
   plugins: [react(), vectorEngineImageApi()],
+  test: {
+    exclude: ['node_modules/**', 'dist/**', '.worktrees/**'],
+  },
 });

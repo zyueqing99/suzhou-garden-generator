@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildGardenImagePrompt, extractErrorMessage, extractGenerationError, extractImageUrl } from './aiImageClient';
+import { buildAiImageRequest, buildGardenImagePrompt, buildImagePrompt, extractErrorMessage, extractGenerationError, extractImageUrl } from './aiImageClient';
 import type { GardenParameters, GardenPlan } from './gardenGenerator';
 
 const parameters: GardenParameters = {
@@ -29,6 +29,28 @@ describe('aiImageClient', () => {
     expect(prompt).toContain('书香亭榭方案');
     expect(prompt).toContain('亭榭');
     expect(prompt).toContain('top-down');
+  });
+
+  it('appends custom image direction after the generated garden prompt', () => {
+    const prompt = buildImagePrompt(plan, parameters, '  cinematic dusk lighting, ink wash texture  ');
+
+    expect(prompt).toContain('苏式庭院景观概念方案：书香亭榭方案');
+    expect(prompt).toContain('User image direction:');
+    expect(prompt).toContain('cinematic dusk lighting, ink wash texture');
+  });
+
+  it('uses reference images for image-to-image generation when provided', () => {
+    expect(buildAiImageRequest({ mode: 'generate', prompt: 'garden', referenceImageUrl: 'data:image/png;base64,abc' })).toMatchObject({
+      mode: 'edit',
+      prompt: 'garden',
+      imageUrl: 'data:image/png;base64,abc',
+    });
+
+    expect(buildAiImageRequest({ mode: 'generate', prompt: 'garden', referenceImageUrl: null })).toMatchObject({
+      mode: 'generate',
+      prompt: 'garden',
+      imageUrl: undefined,
+    });
   });
 
   it('extracts generated image URLs from provider responses', () => {

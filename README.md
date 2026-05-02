@@ -1,6 +1,6 @@
 # suzhou-garden-generator
 
-苏式庭院景观概念方案生成器。左侧调节庭院参数，右侧生成 GPT Image 方案图，并保留规则 SVG 作为结构参考和导出来源。
+苏式庭院景观概念方案生成器。左侧调节庭院参数和 AI 提示词，右侧生成 GPT Image 方案图，并支持导出规则 SVG/PNG。
 
 ## Scripts
 
@@ -22,7 +22,7 @@ VECTOR_ENGINE_API_KEY="your-key" npm run serve
 
 - `PORT`：代理服务端口，默认 `4174`。
 - `VECTOR_ENGINE_BASE_URL`：默认 `https://api.vectorengine.cn`。
-- `VECTOR_ENGINE_TIMEOUT_MS`：图像接口超时，默认 `120000`。
+- `VECTOR_ENGINE_TIMEOUT_MS`：图像接口超时，默认 `300000`。
 
 代理接口：
 

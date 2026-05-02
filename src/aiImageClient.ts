@@ -18,6 +18,13 @@ export interface AiImageResult {
   raw: unknown;
 }
 
+export interface BuildAiImageRequestInput {
+  mode: AiImageMode;
+  prompt: string;
+  referenceImageUrl?: string | null;
+  currentImageUrl?: string | null;
+}
+
 export function buildGardenImagePrompt(plan: GardenPlan, parameters: GardenParameters) {
   const focal = {
     pond: '水院',
@@ -39,6 +46,32 @@ export function buildGardenImagePrompt(plan: GardenPlan, parameters: GardenParam
     'Include whitewashed walls, dark tiled roofs, moon gate, winding stone path, pond, Taihu rocks, pavilion, bamboo, pine, maple, lotus, and subtle annotations.',
     'Style: elegant Suzhou classical garden masterplan, muted ink-and-mineral palette, clean composition, architecture-friendly presentation board.',
   ].join('\n');
+}
+
+export function buildImagePrompt(plan: GardenPlan, parameters: GardenParameters, customDirection: string) {
+  const basePrompt = buildGardenImagePrompt(plan, parameters);
+  const trimmedDirection = customDirection.trim();
+
+  if (!trimmedDirection) {
+    return basePrompt;
+  }
+
+  return `${basePrompt}\nUser image direction:\n${trimmedDirection}`;
+}
+
+export function buildAiImageRequest({ mode, prompt, referenceImageUrl, currentImageUrl }: BuildAiImageRequestInput): AiImageRequest {
+  const imageUrl = mode === 'edit' ? currentImageUrl : referenceImageUrl;
+  const effectiveMode: AiImageMode = imageUrl ? 'edit' : 'generate';
+
+  return {
+    mode: effectiveMode,
+    prompt,
+    imageUrl: imageUrl ?? undefined,
+    size: '1536x1024',
+    quality: 'medium',
+    format: 'png',
+    n: 1,
+  };
 }
 
 export async function requestAiImage(request: AiImageRequest): Promise<AiImageResult> {

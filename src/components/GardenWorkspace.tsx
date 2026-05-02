@@ -1,6 +1,6 @@
-import { Download, FileJson, ImageDown, Images, RefreshCw, WandSparkles } from 'lucide-react';
+import { Download, FileJson, ImageDown, ImagePlus, Images, RefreshCw, WandSparkles, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { buildGardenImagePrompt, normalizeUnknownGenerationError, requestAiImage, type AiImageMode } from '../aiImageClient';
+import { buildAiImageRequest, buildImagePrompt, normalizeUnknownGenerationError, requestAiImage, type AiImageMode } from '../aiImageClient';
 import type { GardenProject, ImageGeneration } from '../domain/project';
 import { downloadJson, downloadPng, downloadSvg } from '../exporters';
 import { GardenPreview } from '../GardenPreview';
@@ -37,6 +37,36 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
     });
   };
 
+  const updateCustomPrompt = (customPrompt: string) => {
+    onProjectChange({
+      ...project,
+      customPrompt,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const updateReferenceImage = (referenceImage: GardenProject['referenceImage']) => {
+    onProjectChange({
+      ...project,
+      referenceImage,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const handleReferenceUpload = (file: File | undefined) => {
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        updateReferenceImage({ name: file.name, url: reader.result });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleGenerate = () => {
     setAiImageUrl(null);
     setStatus('已生成新的规则概念方案');
@@ -50,27 +80,27 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
 
   const handleAiGenerate = async (mode: AiImageMode) => {
     setIsGeneratingImage(true);
-    setAiStatus(mode === 'edit' ? '正在编辑当前 AI 图像...' : '正在调用 gpt-image-2 生成图像...');
+    setAiStatus(mode === 'edit' ? '正在编辑当前 AI 图像...' : project.referenceImage ? '正在参考上传底稿生成图像...' : '正在调用 gpt-image-2 生成图像...');
 
-    const prompt = buildGardenImagePrompt(plan, project.parameters);
-    const request = {
+    const basePrompt = buildImagePrompt(plan, project.parameters, project.customPrompt);
+    const prompt =
+      mode === 'edit'
+        ? `${basePrompt}\nRefine the existing image while preserving the Suzhou garden concept and improving landscape readability.`
+        : project.referenceImage
+          ? `${basePrompt}\nUse the uploaded reference image as the base drawing or visual constraint while applying the garden parameters and style direction.`
+          : basePrompt;
+    const request = buildAiImageRequest({
       mode,
-      prompt:
-        mode === 'edit'
-          ? `${prompt}\nRefine the existing image while preserving the Suzhou garden concept and improving landscape readability.`
-          : prompt,
-      imageUrl: mode === 'edit' ? aiImageUrl ?? undefined : undefined,
-      size: '1536x1024',
-      quality: 'medium',
-      format: 'png',
-      n: 1,
-    };
+      prompt,
+      referenceImageUrl: project.referenceImage?.url,
+      currentImageUrl: aiImageUrl,
+    });
 
     try {
       const result = await requestAiImage(request);
       setAiImageUrl(result.imageUrl);
       setStatus('右侧正在展示 gpt-image-2 图像结果');
-      setAiStatus(mode === 'edit' ? 'AI 图像编辑完成' : 'AI 图像生成完成');
+      setAiStatus(mode === 'edit' ? 'AI 图像编辑完成' : project.referenceImage ? '参考图生成完成' : 'AI 图像生成完成');
       onGenerationAdded({
         id: `generation-${Date.now()}`,
         projectId: project.id,
@@ -139,6 +169,38 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
               <option value="pavilion">亭榭为核</option>
             </select>
           </label>
+        </section>
+
+        <section className="control-section">
+          <h2>AI 提示词</h2>
+          <label className="field">
+            <span>内容 / 风格控制</span>
+            <textarea value={project.customPrompt} onChange={(event) => updateCustomPrompt(event.target.value)} rows={7} />
+          </label>
+        </section>
+
+        <section className="control-section">
+          <h2>底稿 / 参考图</h2>
+          <div className="reference-uploader">
+            {project.referenceImage ? (
+              <div className="reference-preview">
+                <img src={project.referenceImage.url} alt="上传的底稿或参考图" />
+                <div>
+                  <span>{project.referenceImage.name}</span>
+                  <button type="button" onClick={() => updateReferenceImage(undefined)}>
+                    <X size={16} aria-hidden="true" />
+                    移除
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="upload-dropzone">
+                <ImagePlus size={22} aria-hidden="true" />
+                <span>上传底稿/参考图</span>
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleReferenceUpload(event.target.files?.[0])} />
+              </label>
+            )}
+          </div>
         </section>
 
         {latestError ? <ErrorNotice error={latestError} /> : null}

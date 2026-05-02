@@ -19,7 +19,8 @@ body {
 
 button,
 select,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -177,6 +178,10 @@ input[type="range"] {
   accent-color: #3f7f8a;
 }
 
+input[type="file"] {
+  display: none;
+}
+
 .field {
   display: grid;
   gap: 8px;
@@ -192,6 +197,82 @@ select {
   background: #f4f0e7;
   border: 1px solid #cfc5b0;
   border-radius: 6px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  padding: 12px;
+  color: #1f2b24;
+  background: #f4f0e7;
+  border: 1px solid #cfc5b0;
+  border-radius: 6px;
+  line-height: 1.55;
+}
+
+textarea:focus {
+  outline: 2px solid rgba(63, 127, 138, 0.32);
+  outline-offset: 2px;
+}
+
+.reference-uploader {
+  display: grid;
+}
+
+.upload-dropzone {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 118px;
+  padding: 14px;
+  color: #555449;
+  text-align: center;
+  background: #f4f0e7;
+  border: 1px dashed #b9ad96;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.upload-dropzone:hover {
+  background: #eee6d6;
+}
+
+.reference-preview {
+  display: grid;
+  gap: 10px;
+}
+
+.reference-preview img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: #f4f0e7;
+  border: 1px solid #cfc5b0;
+  border-radius: 6px;
+}
+
+.reference-preview div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reference-preview span {
+  min-width: 0;
+  overflow: hidden;
+  color: #45483f;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-preview button {
+  min-height: 34px;
+  padding: 0 10px;
+  flex: 0 0 auto;
 }
 
 .actions {
