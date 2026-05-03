@@ -74,6 +74,8 @@ generateGardenPlan(parameters, seed, siteContext?)
 
 `RuleLayoutContext` 从现有数据派生，不作为独立持久字段保存。第一期包含：
 
+### 场地几何上下文
+
 - `siteBounds`：地块边界包围盒。
 - `buildingBounds`：建筑轮廓包围盒。
 - `mainEntranceSide`：入口方位。
@@ -85,6 +87,45 @@ generateGardenPlan(parameters, seed, siteContext?)
 - `scaleProfile`：由 `courtyardScale` 派生的小、中、大地块适配档位。
 
 坐标仍以当前 SVG viewBox 为目标坐标系。地块图标记的 0-100 百分比坐标在上下文生成阶段映射到 SVG 坐标。
+
+### 空间参数上下文
+
+`RuleLayoutContext` 必须完整保留并归一化左侧空间参数，不能只包含地图标注。建议增加：
+
+- `parameters`：原始 `GardenParameters`，作为导出和规则解释的事实来源。
+- `scaleProfile`：由 `courtyardScale` 派生，控制整体内缩、元素最大尺寸、可用节点数量。
+- `waterProfile`：由 `waterRatio` 派生，包含目标水面占比、主水院尺寸档位、是否需要收缩水面。
+- `rockProfile`：由 `rockDensity` 派生，包含石组数量、石组尺度和是否强化主景叠石。
+- `plantingProfile`：由 `plantingDensity` 派生，包含植物组团数量、遮挡带密度和框景植物密度。
+- `pathProfile`：由 `pathCurvature` 派生，控制路径折点数量、偏移幅度和直视入口的转折强度。
+- `styleProfile`：由 `buildingStyle` 派生，控制建筑标签、屋面表达、厅堂/书斋/小筑的空间气质。
+- `focalProfile`：由 `focalPoint` 派生，控制水院、叠山、亭榭三类核心景点的规则优先级。
+- `requirementProfile`：由 `requirementConfirmation` 派生，覆盖或补充左侧参数，例如构筑物类型、植物倾向和功能需求。
+
+参数归一化后进入规则执行器。规则动作不得直接写固定数量或固定尺寸，而应读取这些 profile 计算布局结果。
+
+## 参数符合性策略
+
+SVG 是否符合左侧空间参数，靠“规则触发”和“规则动作参数化”共同保证：
+
+- `waterRatio` 不只影响 summary，必须影响 `water` 元素面积。第一期用目标水面占 SVG 可用庭院区域的近似比例控制水院宽高，并设置上下限，避免小地块水体失控。
+- `rockDensity` 必须影响 `rock` 元素数量和石组尺度。`focalPoint === 'rockery'` 时，叠石规则优先级提高，并把更多石组聚集到主景区域。
+- `plantingDensity` 必须影响植物组团数量、竹林遮挡带密度和框景植物数量。邻里界面遮挡规则仍由场地触发，但密度由该参数控制。
+- `pathCurvature` 必须影响路径折点偏移和转折强度。入口直视时一定产生转折，但高曲度生成更明显的折线路径。
+- `courtyardScale` 必须影响整体布局的留白、元素尺寸上限和可启用节点数量。小尺度优先保留必要元素，降低构筑物和水体尺度。
+- `buildingStyle` 必须影响建筑元素的文本、比例或 variant，例如 `classic` 偏厅堂，`compact` 偏小筑，`scholar` 偏书斋。
+- `focalPoint` 必须影响规则优先级和元素组合：`pond` 强化水院，`rockery` 强化叠山，`pavilion` 强化亭榭。
+- `requirementConfirmation` 中的手动文字优先级高于参数派生默认值；当用户写明构筑物或植物偏好时，规则解释和元素选择需要体现这些偏好。
+
+当场地标注和空间参数冲突时，按以下优先级处理：
+
+1. 安全几何约束：元素必须落在可用庭院区域内，并避开建筑主体。
+2. 用户显式场地标注：入口、主观景面、建筑轮廓和邻里界面优先。
+3. 用户显式需求确认：手动填写的构筑物、植物和功能偏好优先。
+4. 左侧空间参数：水体、叠石、植物、游线曲度、风格和核心景点控制强度与数量。
+5. 内置苏式规则默认值：仅在信息不足时补足布局。
+
+每条 `RuleExplanation` 需要记录主要参数影响，例如“水体占比 38% 约束水院为中小尺度”或“游线曲度 58% 使入口路径产生两段转折”，让 SVG 和 JSON 都能解释参数如何生效。
 
 ## 可编辑规则定义
 
