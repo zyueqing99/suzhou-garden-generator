@@ -31,6 +31,28 @@ describe('aiImageClient', () => {
     expect(prompt).toContain('top-down');
   });
 
+  it('appends rule explanations as spatial constraints in the generated prompt', () => {
+    const prompt = buildGardenImagePrompt(
+      {
+        ...plan,
+        ruleExplanations: [
+          {
+            ruleId: 'neighbor-bamboo-screen',
+            ruleName: '邻里界面竹影障景',
+            category: 'plant-screening',
+            summary: '西侧以竹林和景墙形成竹影障景。',
+            parameters: '植物密度 66%',
+          },
+        ],
+      },
+      parameters,
+    );
+
+    expect(prompt).toContain('规则化空间关系');
+    expect(prompt).toContain('- 西侧以竹林和景墙形成竹影障景。');
+    expect(prompt).not.toContain('User image direction:');
+  });
+
   it('appends custom image direction after the generated garden prompt', () => {
     const prompt = buildImagePrompt(plan, parameters, '  cinematic dusk lighting, ink wash texture  ');
 

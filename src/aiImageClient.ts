@@ -38,14 +38,20 @@ export function buildGardenImagePrompt(plan: GardenPlan, parameters: GardenParam
     scholar: '书斋园居',
   }[parameters.buildingStyle];
 
-  return [
+  const promptLines = [
     `苏式庭院景观概念方案：${plan.name}`,
     'Create a refined top-down landscape concept plan, not a photorealistic perspective render.',
     `Core scene: ${focal}, building style: ${building}.`,
     `Spatial parameters: courtyard scale ${parameters.courtyardScale}%, water ratio ${parameters.waterRatio}%, rock density ${parameters.rockDensity}%, planting density ${parameters.plantingDensity}%, path curvature ${parameters.pathCurvature}%.`,
     'Include whitewashed walls, dark tiled roofs, moon gate, winding stone path, pond, Taihu rocks, pavilion, bamboo, pine, maple, lotus, and subtle annotations.',
     'Style: elegant Suzhou classical garden masterplan, muted ink-and-mineral palette, clean composition, architecture-friendly presentation board.',
-  ].join('\n');
+  ];
+
+  if (plan.ruleExplanations?.length) {
+    promptLines.push('规则化空间关系：', ...plan.ruleExplanations.map((explanation) => `- ${explanation.summary}`));
+  }
+
+  return promptLines.join('\n');
 }
 
 export function buildImagePrompt(plan: GardenPlan, parameters: GardenParameters, customDirection: string) {

@@ -1,3 +1,7 @@
+import type { RuleExplanation } from './suzhouRules';
+import { applySuzhouRules } from './suzhouRules';
+import { hasUsableSiteContext, type RuleLayoutContext } from './ruleLayout';
+
 export type BuildingStyle = 'classic' | 'compact' | 'scholar';
 export type FocalPoint = 'pond' | 'rockery' | 'pavilion';
 
@@ -21,7 +25,12 @@ export type GardenElementKind =
   | 'plant'
   | 'pavilion'
   | 'gate'
-  | 'label';
+  | 'label'
+  | 'screenWall'
+  | 'viewArrow'
+  | 'moonGate'
+  | 'bambooScreen'
+  | 'courtyardNode';
 
 export interface GardenElement {
   id: string;
@@ -35,6 +44,10 @@ export interface GardenElement {
   points?: Array<{ x: number; y: number }>;
   text?: string;
   variant?: string;
+  sourceRule?: string;
+  label?: string;
+  description?: string;
+  layer?: 'base' | 'screening' | 'building' | 'water' | 'path' | 'planting' | 'structure' | 'annotation';
 }
 
 export interface GardenPlan {
@@ -44,10 +57,11 @@ export interface GardenPlan {
   seed: number;
   summary: string[];
   elements: GardenElement[];
+  ruleExplanations?: RuleExplanation[];
 }
 
-const PLAN_WIDTH = 1080;
-const PLAN_HEIGHT = 760;
+export const PLAN_WIDTH = 1080;
+export const PLAN_HEIGHT = 760;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -85,7 +99,11 @@ function boundedElement(element: GardenElement): GardenElement {
   };
 }
 
-export function generateGardenPlan(parameters: GardenParameters, seed = Date.now()): GardenPlan {
+export function generateGardenPlan(parameters: GardenParameters, seed = Date.now(), ruleContext?: RuleLayoutContext): GardenPlan {
+  if (hasUsableSiteContext(ruleContext)) {
+    return generateRuleBasedGardenPlan(parameters, seed, ruleContext);
+  }
+
   const random = mulberry32(seed);
   const scale = clamp(parameters.courtyardScale, 20, 100);
   const inset = 42 + (100 - scale) * 0.34;
@@ -261,5 +279,66 @@ export function generateGardenPlan(parameters: GardenParameters, seed = Date.now
       `叠石密度 ${parameters.rockDensity}%：在水岸和转折处形成景观节点`,
     ],
     elements: elements.map(boundedElement),
+  };
+}
+
+function generateRuleBasedGardenPlan(parameters: GardenParameters, seed: number, ruleContext: RuleLayoutContext): GardenPlan {
+  const ruleApplication = applySuzhouRules(ruleContext);
+  const baseElements: GardenElement[] = [
+    {
+      id: 'site-boundary-reference',
+      kind: 'wall',
+      x: ruleContext.siteBounds.x,
+      y: ruleContext.siteBounds.y,
+      width: ruleContext.siteBounds.width,
+      height: ruleContext.siteBounds.height,
+      points: ruleContext.boundaryPoints,
+      label: '地块边界',
+      layer: 'base',
+      variant: 'site-boundary',
+    },
+  ];
+
+  if (ruleContext.buildingBounds) {
+    baseElements.push({
+      id: 'building-footprint-reference',
+      kind: 'building',
+      x: ruleContext.buildingBounds.x,
+      y: ruleContext.buildingBounds.y,
+      width: ruleContext.buildingBounds.width,
+      height: ruleContext.buildingBounds.height,
+      points: ruleContext.buildingPoints,
+      text: ruleContext.styleProfile.buildingLabel,
+      label: '建筑轮廓',
+      layer: 'building',
+      variant: parameters.buildingStyle,
+    });
+  }
+
+  const focusName = {
+    pond: '水院',
+    rockery: '叠山',
+    pavilion: '亭榭',
+  }[parameters.focalPoint];
+
+  const styleName = {
+    classic: '雅集',
+    compact: '小筑',
+    scholar: '书香',
+  }[parameters.buildingStyle];
+
+  return {
+    name: `${styleName}${focusName}规则方案`,
+    width: PLAN_WIDTH,
+    height: PLAN_HEIGHT,
+    seed,
+    summary: [
+      `庭院尺度 ${parameters.courtyardScale}%：规则布局使用${ruleContext.scaleProfile.name === 'large' ? '舒展' : '紧凑'}适配`,
+      `水体占比 ${parameters.waterRatio}%：以参数控制水院面积`,
+      `植物密度 ${parameters.plantingDensity}%：控制遮挡带和框景植物数量`,
+      ...ruleApplication.summary,
+    ],
+    elements: [...baseElements, ...ruleApplication.elements].map(boundedElement),
+    ruleExplanations: ruleApplication.explanations,
   };
 }

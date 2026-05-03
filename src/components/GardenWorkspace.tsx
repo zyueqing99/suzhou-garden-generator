@@ -6,6 +6,7 @@ import type { GardenProject, ImageGeneration } from '../domain/project';
 import { downloadJson, downloadPng, downloadSvg } from '../exporters';
 import { GardenPreview } from '../GardenPreview';
 import { generateGardenPlan, type BuildingStyle, type FocalPoint, type GardenParameters } from '../gardenGenerator';
+import { createRuleLayoutContext, hasUsableSiteContext } from '../ruleLayout';
 import {
   resolveRequirementConfirmation,
   updateRequirementConfirmation,
@@ -39,12 +40,19 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
   const [activeTool, setActiveTool] = useState<SiteMarkupTool>('boundary');
   const svgRef = useRef<SVGSVGElement | null>(null);
   const siteCanvasRef = useRef<HTMLDivElement | null>(null);
-  const plan = useMemo(() => generateGardenPlan(project.parameters, project.seed), [project.parameters, project.seed]);
   const siteMarkup = project.siteMarkup ?? emptySiteMarkup;
   const siteAnalysis = useMemo(() => createSiteAnalysis(siteMarkup), [siteMarkup]);
   const requirementConfirmation = useMemo(
     () => resolveRequirementConfirmation(project.parameters, project.requirementConfirmation),
     [project.parameters, project.requirementConfirmation],
+  );
+  const ruleLayoutContext = useMemo(
+    () => createRuleLayoutContext({ parameters: project.parameters, siteMarkup, siteAnalysis, requirementConfirmation }),
+    [project.parameters, siteMarkup, siteAnalysis, requirementConfirmation],
+  );
+  const plan = useMemo(
+    () => generateGardenPlan(project.parameters, project.seed, hasUsableSiteContext(ruleLayoutContext) ? ruleLayoutContext : undefined),
+    [project.parameters, project.seed, ruleLayoutContext],
   );
   const latestError = project.generations.find((generation) => generation.status === 'failed' && generation.error)?.error;
   const mapEraseAction = getMapEraseAction(activeTool, siteMarkup);
@@ -313,7 +321,7 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
             <ImageDown size={18} aria-hidden="true" />
             导出 PNG
           </button>
-          <button type="button" onClick={() => downloadJson(project, filename)}>
+          <button type="button" onClick={() => downloadJson({ project, plan, siteAnalysis, requirementConfirmation, ruleExplanations: plan.ruleExplanations ?? [] }, filename)}>
             <FileJson size={18} aria-hidden="true" />
             导出 JSON
           </button>
