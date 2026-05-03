@@ -94,7 +94,7 @@ generateGardenPlan(parameters, seed, siteContext?)
 
 - `parameters`：原始 `GardenParameters`，作为导出和规则解释的事实来源。
 - `scaleProfile`：由 `courtyardScale` 派生，控制整体内缩、元素最大尺寸、可用节点数量。
-- `waterProfile`：由 `waterRatio` 派生，包含目标水面占比、主水院尺寸档位、是否需要收缩水面。
+- `waterProfile`：优先由 `waterRatio` 派生，包含目标水面占比和主水院尺寸档位；`courtyardScale` 只提供可用空间上限和必要收缩约束。
 - `rockProfile`：由 `rockDensity` 派生，包含石组数量、石组尺度和是否强化主景叠石。
 - `plantingProfile`：由 `plantingDensity` 派生，包含植物组团数量、遮挡带密度和框景植物密度。
 - `pathProfile`：由 `pathCurvature` 派生，控制路径折点数量、偏移幅度和直视入口的转折强度。
@@ -108,7 +108,8 @@ generateGardenPlan(parameters, seed, siteContext?)
 
 SVG 是否符合左侧空间参数，靠“规则触发”和“规则动作参数化”共同保证：
 
-- `waterRatio` 不只影响 summary，必须影响 `water` 元素面积。第一期用目标水面占 SVG 可用庭院区域的近似比例控制水院宽高，并设置上下限，避免小地块水体失控。
+- `waterRatio` 不只影响 summary，必须作为 `water` 元素面积的第一优先控制参数。第一期用目标水面占 SVG 可用庭院区域的近似比例控制水院宽高。
+- `courtyardScale` 对水面只作为适配约束：当目标水面无法放入可用庭院区域时，才按空间上限收缩水院，并在 `RuleExplanation` 中说明“因地块尺度收缩”。
 - `rockDensity` 必须影响 `rock` 元素数量和石组尺度。`focalPoint === 'rockery'` 时，叠石规则优先级提高，并把更多石组聚集到主景区域。
 - `plantingDensity` 必须影响植物组团数量、竹林遮挡带密度和框景植物数量。邻里界面遮挡规则仍由场地触发，但密度由该参数控制。
 - `pathCurvature` 必须影响路径折点偏移和转折强度。入口直视时一定产生转折，但高曲度生成更明显的折线路径。
@@ -181,7 +182,7 @@ export const builtInSuzhouRules: SuzhouRuleDefinition[] = [...]
    如果入口到庭院核心近似直视，则在入口内侧设置障景墙或植物组团，使主路径先转折再入园。
 
 3. **水院尺度适配**
-   根据 `courtyardScale` 和 `waterRatio` 控制水院大小；小地块收缩水面，避免占满场地。
+   优先根据 `waterRatio` 确定水院目标面积；`courtyardScale` 只在可用空间不足时作为上限约束收缩水面，避免占满场地。
 
 4. **构筑物组合**
    根据 `structureTypes` 或当前 `focalPoint` 生成亭、廊、桥组合：水院有桥，茶庭有月洞门，主景点可配亭。
