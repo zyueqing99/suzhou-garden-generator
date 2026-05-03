@@ -12,6 +12,8 @@ npm install
 npm run dev
 ```
 
+Open `http://localhost:5188/`. The dev server uses a dedicated strict port so the browser does not accidentally show another local Vite app on `5173`.
+
 ## Run Production-Style Local Server
 
 ```bash

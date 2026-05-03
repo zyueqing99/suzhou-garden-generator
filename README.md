@@ -10,6 +10,8 @@ npm run build
 npm test
 ```
 
+开发服务固定使用 `http://localhost:5188/`，避免和其它 Vite 项目的默认 `5173` 端口串页。
+
 ## VectorEngine Image Proxy
 
 浏览器端不直接持有 VectorEngine key。生产式本地运行请使用内置代理：

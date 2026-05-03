@@ -47,6 +47,7 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
     [project.parameters, project.requirementConfirmation],
   );
   const latestError = project.generations.find((generation) => generation.status === 'failed' && generation.error)?.error;
+  const mapEraseAction = getMapEraseAction(activeTool, siteMarkup);
 
   useEffect(() => {
     const latestImageUrl = project.generations.find((generation) => generation.imageUrl)?.imageUrl ?? null;
@@ -95,8 +96,7 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
       updatedAt: new Date().toISOString(),
     });
   };
-  const canAddActiveMarkupPoint = activeTool !== 'boundary' || siteAnalysis.siteBoundary !== '已确认';
-  const activeSiteEditHint = canAddActiveMarkupPoint ? activeToolHint[activeTool] : '地块边界已确认。如需重绘，请先清除当前标记。';
+  const activeSiteEditHint = getActiveToolHint(activeTool, siteMarkup);
 
   const handleSiteUpload = (file: File | undefined) => {
     if (!file) {
@@ -113,7 +113,7 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
   };
 
   const handleSiteCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!project.siteImage || !siteCanvasRef.current || !canAddActiveMarkupPoint) {
+    if (!project.siteImage || !siteCanvasRef.current) {
       return;
     }
 
@@ -131,9 +131,6 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
     }
 
     event.preventDefault();
-    if (!canAddActiveMarkupPoint) {
-      return;
-    }
     updateSiteMarkup(appendSiteMarkupPoint(siteMarkup, activeTool, { x: 50, y: 50 }));
   };
 
@@ -279,30 +276,10 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
 
         <section className="control-section">
           <h2>标记工具</h2>
-          <div className="tool-grid" role="group" aria-label="地块图标记工具">
-            <ToolButton icon={<Map size={17} aria-hidden="true" />} label="绘制地块边界" active={activeTool === 'boundary'} onClick={() => setActiveTool('boundary')} />
-            <ToolButton
-              icon={<Building2 size={17} aria-hidden="true" />}
-              label="绘制建筑轮廓"
-              active={activeTool === 'buildingFootprint'}
-              onClick={() => setActiveTool('buildingFootprint')}
-            />
-            <ToolButton
-              icon={<MousePointer2 size={17} aria-hidden="true" />}
-              label="标记主入口"
-              active={activeTool === 'mainEntrance'}
-              onClick={() => setActiveTool('mainEntrance')}
-            />
-            <ToolButton
-              icon={<ScanLine size={17} aria-hidden="true" />}
-              label="标记建筑主观景面"
-              active={activeTool === 'mainViewSide'}
-              onClick={() => setActiveTool('mainViewSide')}
-            />
-          </div>
+          <SiteToolButtons activeTool={activeTool} onToolChange={setActiveTool} ariaLabel="侧栏地块图标记工具" />
           <button type="button" onClick={clearActiveMarkup}>
             <X size={16} aria-hidden="true" />
-            清除当前标记
+            {redrawActionLabel[activeTool]}
           </button>
         </section>
 
@@ -363,13 +340,20 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
               </div>
               <span>{activeToolLabel[activeTool]}</span>
             </div>
+            <SiteToolButtons activeTool={activeTool} onToolChange={setActiveTool} ariaLabel="画布地块图标记工具" className="site-tool-grid" />
+            {mapEraseAction ? (
+              <button className="site-erase-button" type="button" onClick={() => updateSiteMarkup(clearSiteMarkupByTool(siteMarkup, mapEraseAction.tool))}>
+                <X size={16} aria-hidden="true" />
+                {mapEraseAction.label}
+              </button>
+            ) : null}
             {project.siteImage ? (
               <div
                 ref={siteCanvasRef}
                 className="site-canvas"
                 role="button"
                 tabIndex={0}
-                aria-label={canAddActiveMarkupPoint ? `${activeToolLabel[activeTool]}，在地块图上点击添加标记点` : '地块边界已确认'}
+                aria-label={`${activeToolLabel[activeTool]}，在地块图上点击添加标记点`}
                 onClick={handleSiteCanvasClick}
                 onKeyDown={handleSiteCanvasKeyDown}
               >
@@ -433,6 +417,13 @@ const activeToolHint: Record<SiteMarkupTool, string> = {
   mainViewSide: '在地块图上点击一次标记建筑主观景面。',
 };
 
+const redrawActionLabel: Record<SiteMarkupTool, string> = {
+  boundary: '重新绘制地块边界',
+  buildingFootprint: '重新绘制建筑轮廓',
+  mainEntrance: '重新标记主入口',
+  mainViewSide: '重新标记建筑主观景面',
+};
+
 const siteAnalysisLabels: Record<keyof SiteAnalysisData, string> = {
   siteBoundary: '地块边界',
   buildingFootprint: '建筑轮廓',
@@ -456,8 +447,16 @@ const requirementLabels: Record<RequirementConfirmationKey, string> = {
 function SiteMarkupOverlay({ markup }: { markup: SiteMarkup }) {
   return (
     <svg className="site-markup-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <polyline points={pointsToAttribute(markup.boundary)} className="site-boundary-line" />
-      <polyline points={pointsToAttribute(markup.buildingFootprint)} className="site-building-line" />
+      {markup.boundary.length >= 3 ? (
+        <polygon points={pointsToAttribute(markup.boundary)} className="site-boundary-line" />
+      ) : (
+        <polyline points={pointsToAttribute(markup.boundary)} className="site-boundary-line" />
+      )}
+      {markup.buildingFootprint.length >= 3 ? (
+        <polygon points={pointsToAttribute(markup.buildingFootprint)} className="site-building-line" />
+      ) : (
+        <polyline points={pointsToAttribute(markup.buildingFootprint)} className="site-building-line" />
+      )}
       {markup.boundary.map((point, index) => (
         <circle key={`boundary-${index}`} cx={point.x} cy={point.y} r="1.4" className="site-boundary-dot" />
       ))}
@@ -477,8 +476,51 @@ function SiteMarkupOverlay({ markup }: { markup: SiteMarkup }) {
   );
 }
 
+function getActiveToolHint(activeTool: SiteMarkupTool, siteMarkup: SiteMarkup) {
+  if (activeTool === 'boundary' && siteMarkup.boundary.length >= 3) {
+    return '在地块图上点击继续添加边界点，系统会自动闭合为地块多边形。';
+  }
+  return activeToolHint[activeTool];
+}
+
+export function getMapEraseAction(activeTool: SiteMarkupTool, siteMarkup: SiteMarkup): { tool: SiteMarkupTool; label: string } | null {
+  if (activeTool === 'boundary' && siteMarkup.boundary.length >= 3) {
+    return { tool: 'boundary', label: '擦除地块边界' };
+  }
+  if (activeTool === 'buildingFootprint' && siteMarkup.buildingFootprint.length >= 3) {
+    return { tool: 'buildingFootprint', label: '擦除建筑轮廓' };
+  }
+  return null;
+}
+
 function pointsToAttribute(points: SitePoint[]) {
   return points.map((point) => `${point.x},${point.y}`).join(' ');
+}
+
+function SiteToolButtons({
+  activeTool,
+  onToolChange,
+  ariaLabel,
+  className,
+}: {
+  activeTool: SiteMarkupTool;
+  onToolChange: (tool: SiteMarkupTool) => void;
+  ariaLabel: string;
+  className?: string;
+}) {
+  return (
+    <div className={className ? `tool-grid ${className}` : 'tool-grid'} role="group" aria-label={ariaLabel}>
+      <ToolButton icon={<Map size={17} aria-hidden="true" />} label="绘制地块边界" active={activeTool === 'boundary'} onClick={() => onToolChange('boundary')} />
+      <ToolButton
+        icon={<Building2 size={17} aria-hidden="true" />}
+        label="绘制建筑轮廓"
+        active={activeTool === 'buildingFootprint'}
+        onClick={() => onToolChange('buildingFootprint')}
+      />
+      <ToolButton icon={<MousePointer2 size={17} aria-hidden="true" />} label="标记主入口" active={activeTool === 'mainEntrance'} onClick={() => onToolChange('mainEntrance')} />
+      <ToolButton icon={<ScanLine size={17} aria-hidden="true" />} label="标记建筑主观景面" active={activeTool === 'mainViewSide'} onClick={() => onToolChange('mainViewSide')} />
+    </div>
+  );
 }
 
 function ToolButton({ icon, label, active, onClick }: { icon: ReactNode; label: string; active: boolean; onClick: () => void }) {

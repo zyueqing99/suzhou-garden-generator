@@ -19,6 +19,10 @@ function vectorEngineImageApi(): Plugin {
 
 export default defineConfig({
   plugins: [react(), vectorEngineImageApi()],
+  server: {
+    port: 5188,
+    strictPort: true,
+  },
   test: {
     exclude: ['node_modules/**', 'dist/**', '.worktrees/**'],
   },

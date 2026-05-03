@@ -293,6 +293,23 @@ textarea:focus {
   gap: 8px;
 }
 
+.site-tool-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.site-erase-button {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 12px;
+  color: #7b2f2b;
+  background: #fff4ec;
+  border-color: #d8b6a8;
+}
+
+.site-erase-button:hover {
+  background: #f4e2d8;
+}
+
 .tool-button {
   justify-content: flex-start;
   min-height: 40px;
@@ -515,8 +532,16 @@ button:hover {
   stroke: #7b2f2b;
 }
 
+polygon.site-boundary-line {
+  fill: rgba(123, 47, 43, 0.12);
+}
+
 .site-building-line {
   stroke: #3f7f8a;
+}
+
+polygon.site-building-line {
+  fill: rgba(63, 127, 138, 0.14);
 }
 
 .site-boundary-dot {
@@ -776,6 +801,10 @@ button:hover {
   }
 
   .actions {
+    grid-template-columns: 1fr;
+  }
+
+  .site-tool-grid {
     grid-template-columns: 1fr;
   }
 

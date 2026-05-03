@@ -66,9 +66,6 @@ export function appendSiteMarkupPoint(markup: SiteMarkup, tool: SiteMarkupTool, 
   const normalizedPoint = normalizeSitePoint(point);
 
   if (tool === 'boundary') {
-    if (markup.boundary.length >= 3) {
-      return markup;
-    }
     return { ...markup, boundary: [...markup.boundary, normalizedPoint] };
   }
   if (tool === 'buildingFootprint') {

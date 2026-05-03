@@ -16,6 +16,13 @@ describe('vite config', () => {
 
     expect(testConfig?.exclude).toContain('.worktrees/**');
   });
+
+  it('uses a dedicated strict development port to avoid opening another Vite app', () => {
+    const resolvedConfig = config as UserConfig;
+
+    expect(resolvedConfig.server?.port).toBe(5188);
+    expect(resolvedConfig.server?.strictPort).toBe(true);
+  });
 });
 
 function flattenPlugins(plugins: UserConfig['plugins']): PluginOption[] {
