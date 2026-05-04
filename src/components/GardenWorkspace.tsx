@@ -154,10 +154,6 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
     updateSiteMarkup(appendSiteMarkupPoint(siteMarkup, activeTool, { x: 50, y: 50 }));
   };
 
-  const clearActiveMarkup = () => {
-    updateSiteMarkup(clearSiteMarkupByTool(siteMarkup, activeTool));
-  };
-
   const handleGenerate = () => {
     setAiImageUrl(null);
     setStatus('已生成新的规则概念方案');
@@ -248,15 +244,12 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
 
             <div className="reference-uploader">
               {project.siteImage ? (
-                <div className="reference-preview">
-                  <img src={project.siteImage.url} alt="上传的地块图" />
-                  <div>
-                    <span>{project.siteImage.name}</span>
-                    <button type="button" onClick={() => updateSiteImage(undefined)}>
-                      <X size={16} aria-hidden="true" />
-                      移除
-                    </button>
-                  </div>
+                <div className="reference-file-row">
+                  <span>{project.siteImage.name}</span>
+                  <button type="button" onClick={() => updateSiteImage(undefined)}>
+                    <X size={16} aria-hidden="true" />
+                    移除
+                  </button>
                 </div>
               ) : (
                 <label className="upload-dropzone">
@@ -304,10 +297,7 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
             <GenerationControls
               parameters={project.parameters}
               seed={project.seed}
-              activeTool={activeTool}
               onParameterChange={updateParameter}
-              onToolChange={setActiveTool}
-              onClearActiveMarkup={clearActiveMarkup}
               onGenerate={handleGenerate}
               onExportPng={() => {
                 if (svgRef.current) {
@@ -479,10 +469,7 @@ function RequirementSummary({ confirmation }: { confirmation: RequirementConfirm
 function GenerationControls({
   parameters,
   seed,
-  activeTool,
   onParameterChange,
-  onToolChange,
-  onClearActiveMarkup,
   onGenerate,
   onExportPng,
   onExportSvg,
@@ -490,10 +477,7 @@ function GenerationControls({
 }: {
   parameters: GardenParameters;
   seed: number;
-  activeTool: SiteMarkupTool;
   onParameterChange: <K extends keyof GardenParameters>(key: K, value: GardenParameters[K]) => void;
-  onToolChange: (tool: SiteMarkupTool) => void;
-  onClearActiveMarkup: () => void;
   onGenerate: () => void;
   onExportPng: () => void;
   onExportSvg: () => void;
@@ -513,11 +497,6 @@ function GenerationControls({
           <RefreshCw size={14} aria-hidden="true" />
         </button>
       </div>
-      <SiteToolButtons activeTool={activeTool} onToolChange={onToolChange} ariaLabel="辅助地块图标记工具" />
-      <button type="button" onClick={onClearActiveMarkup}>
-        <X size={16} aria-hidden="true" />
-        {redrawActionLabel[activeTool]}
-      </button>
       <button className="primary-action" type="button" onClick={onGenerate}>
         <WandSparkles size={18} aria-hidden="true" />
         生成方案

@@ -74,7 +74,7 @@ describe('GardenWorkspace', () => {
 
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain('在地块图上点击添加边界点');
-    expect(markup.match(/class="tool-button/g)).toHaveLength(8);
+    expect(markup.match(/class="tool-button/g)).toHaveLength(4);
     expect(markup).toContain('绘制建筑轮廓');
     expect(markup).toContain('标记主入口');
     expect(markup).toContain('标记建筑主观景面');
@@ -92,6 +92,24 @@ describe('GardenWorkspace', () => {
     expect(workspaceMarkup).toContain('绘制建筑轮廓');
     expect(workspaceMarkup).toContain('标记主入口');
     expect(workspaceMarkup).toContain('标记建筑主观景面');
+  });
+
+  it('keeps site markup tools and uploaded map preview in one place only', () => {
+    const project = createDefaultProject({ now: '2026-05-04T11:30:00.000Z', seed: 32, name: '去重布局' });
+    const markup = renderToStaticMarkup(
+      <GardenWorkspace
+        project={{
+          ...project,
+          siteImage: { name: 'site.png', url: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E' },
+        }}
+        onProjectChange={vi.fn()}
+        onGenerationAdded={vi.fn()}
+      />,
+    );
+
+    expect(markup.match(/class="tool-button/g)).toHaveLength(4);
+    expect(markup.match(/class="site-canvas/g)).toHaveLength(1);
+    expect(markup).not.toContain('class="reference-preview"');
   });
 
   it('keeps confirmed site boundary drawing open for more polygon points', () => {
@@ -116,7 +134,7 @@ describe('GardenWorkspace', () => {
     );
 
     expect(markup).toContain('在地块图上点击继续添加边界点，系统会自动闭合为地块多边形。');
-    expect(markup).toContain('重新绘制地块边界');
+    expect(markup).toContain('擦除地块边界');
     expect(markup).toContain('<polygon points="10,10 80,10 80,80" class="site-boundary-line"></polygon>');
   });
 
