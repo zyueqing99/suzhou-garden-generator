@@ -1,11 +1,31 @@
-import { Building2, Download, FileJson, ImageDown, ImagePlus, Images, Map, MousePointer2, RefreshCw, ScanLine, WandSparkles, X } from 'lucide-react';
+import {
+  Building2,
+  Check,
+  ChevronDown,
+  CircleHelp,
+  Download,
+  FileJson,
+  ImageDown,
+  ImagePlus,
+  Layers,
+  Map,
+  Maximize2,
+  MousePointer2,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  ScanLine,
+  Upload,
+  WandSparkles,
+  X,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildAiImageRequest, buildImagePrompt, normalizeUnknownGenerationError, requestAiImage, type AiImageMode } from '../aiImageClient';
 import type { GardenProject, ImageGeneration } from '../domain/project';
 import { downloadJson, downloadPng, downloadSvg } from '../exporters';
 import { GardenPreview } from '../GardenPreview';
-import { generateGardenPlan, type BuildingStyle, type FocalPoint, type GardenParameters } from '../gardenGenerator';
+import { generateGardenPlan, type GardenParameters } from '../gardenGenerator';
 import { createRuleLayoutContext, hasUsableSiteContext } from '../ruleLayout';
 import {
   resolveRequirementConfirmation,
@@ -69,14 +89,6 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
       ...project,
       updatedAt: new Date().toISOString(),
       parameters: { ...project.parameters, [key]: value },
-    });
-  };
-
-  const updateCustomPrompt = (customPrompt: string) => {
-    onProjectChange({
-      ...project,
-      customPrompt,
-      updatedAt: new Date().toISOString(),
     });
   };
 
@@ -213,141 +225,48 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
   const filename = `suzhou-garden-${plan.seed}`;
 
   return (
-    <>
-      <aside className="control-panel" aria-label="参数控制面板">
-        <div className="brand-block">
-          <p className="eyebrow">Frontend MVP</p>
-          <h1>苏式庭院景观概念方案生成器</h1>
-          <p>用规则快速生成可导出的概念平面预览。</p>
-        </div>
+    <section className="workspace-shell" aria-label="第二版方案生成工作台">
+      <TopAppBar
+        onExport={() => {
+          if (svgRef.current) {
+            void downloadPng(svgRef.current, filename);
+          }
+        }}
+      />
+      <ProcessStepper />
 
-        <section className="control-section">
-          <h2>空间参数</h2>
-          <Slider label="庭院尺度" value={project.parameters.courtyardScale} onChange={(value) => updateParameter('courtyardScale', value)} />
-          <Slider label="水体占比" value={project.parameters.waterRatio} onChange={(value) => updateParameter('waterRatio', value)} />
-          <Slider label="叠石密度" value={project.parameters.rockDensity} onChange={(value) => updateParameter('rockDensity', value)} />
-          <Slider label="植物密度" value={project.parameters.plantingDensity} onChange={(value) => updateParameter('plantingDensity', value)} />
-          <Slider label="游线曲度" value={project.parameters.pathCurvature} onChange={(value) => updateParameter('pathCurvature', value)} />
-        </section>
-
-        <section className="control-section">
-          <h2>风格设定</h2>
-          <label className="field">
-            <span>建筑气质</span>
-            <select value={project.parameters.buildingStyle} onChange={(event) => updateParameter('buildingStyle', event.target.value as BuildingStyle)}>
-              <option value="classic">典雅厅堂</option>
-              <option value="compact">紧凑小筑</option>
-              <option value="scholar">书斋园居</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>核心景点</span>
-            <select value={project.parameters.focalPoint} onChange={(event) => updateParameter('focalPoint', event.target.value as FocalPoint)}>
-              <option value="pond">水院为核</option>
-              <option value="rockery">叠山为核</option>
-              <option value="pavilion">亭榭为核</option>
-            </select>
-          </label>
-        </section>
-
-        <section className="control-section">
-          <h2>AI 提示词</h2>
-          <label className="field">
-            <span>内容 / 风格控制</span>
-            <textarea value={project.customPrompt} onChange={(event) => updateCustomPrompt(event.target.value)} rows={7} />
-          </label>
-        </section>
-
-        <section className="control-section">
-          <h2>地块图</h2>
-          <div className="reference-uploader">
-            {project.siteImage ? (
-              <div className="reference-preview">
-                <img src={project.siteImage.url} alt="上传的地块图" />
-                <div>
-                  <span>{project.siteImage.name}</span>
-                  <button type="button" onClick={() => updateSiteImage(undefined)}>
-                    <X size={16} aria-hidden="true" />
-                    移除
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <label className="upload-dropzone">
-                <ImagePlus size={22} aria-hidden="true" />
-                <span>上传地块图</span>
-                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleSiteUpload(event.target.files?.[0])} />
-              </label>
-            )}
-          </div>
-        </section>
-
-        <section className="control-section">
-          <h2>标记工具</h2>
-          <SiteToolButtons activeTool={activeTool} onToolChange={setActiveTool} ariaLabel="侧栏地块图标记工具" />
-          <button type="button" onClick={clearActiveMarkup}>
-            <X size={16} aria-hidden="true" />
-            {redrawActionLabel[activeTool]}
-          </button>
-        </section>
-
-        {latestError ? <ErrorNotice error={latestError} /> : null}
-
-        <div className="actions">
-          <button className="primary-action" type="button" onClick={handleGenerate}>
-            <RefreshCw size={18} aria-hidden="true" />
-            生成方案
-          </button>
-          <button type="button" onClick={() => void handleAiGenerate('generate')} disabled={isGeneratingImage}>
-            <WandSparkles size={18} aria-hidden="true" />
-            生成 AI 图像
-          </button>
-          <button type="button" onClick={() => void handleAiGenerate('edit')} disabled={isGeneratingImage || !aiImageUrl}>
-            <Images size={18} aria-hidden="true" />
-            编辑当前图像
-          </button>
-          <button type="button" onClick={() => svgRef.current && downloadSvg(svgRef.current, filename)}>
-            <Download size={18} aria-hidden="true" />
-            导出 SVG
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (svgRef.current) {
-                void downloadPng(svgRef.current, filename);
-              }
-            }}
-          >
-            <ImageDown size={18} aria-hidden="true" />
-            导出 PNG
-          </button>
-          <button type="button" onClick={() => downloadJson({ project, plan, siteAnalysis, requirementConfirmation, ruleExplanations: plan.ruleExplanations ?? [] }, filename)}>
-            <FileJson size={18} aria-hidden="true" />
-            导出 JSON
-          </button>
-        </div>
-      </aside>
-
-      <section className="preview-area" aria-label="苏式庭院概念平面预览">
-        <header className="preview-header">
-          <div>
-            <p className="eyebrow">概念平面预览</p>
-            <h2>{project.name}</h2>
-          </div>
-          <div className="plan-meta">
-            <span>Seed {plan.seed}</span>
-            <span>{status}</span>
-          </div>
-        </header>
-        <div className="preview-canvas">
-          <section className="site-markup-panel" aria-label="地块图标记工作区">
-            <div className="panel-title-row">
+      <div className="workspace-grid">
+        <aside className="workspace-controls" aria-label="参数控制面板">
+          <section className="control-card site-markup-panel" aria-label="地块图标记工作区">
+            <div className="card-title-row">
               <div>
-                <p className="eyebrow">Site Markup</p>
-                <h3>地块图标记</h3>
+                <h2>场地解析</h2>
+                <p>查看详情</p>
               </div>
-              <span>{activeToolLabel[activeTool]}</span>
+              <ChevronDown size={16} aria-hidden="true" />
             </div>
+
+            <div className="reference-uploader">
+              {project.siteImage ? (
+                <div className="reference-preview">
+                  <img src={project.siteImage.url} alt="上传的地块图" />
+                  <div>
+                    <span>{project.siteImage.name}</span>
+                    <button type="button" onClick={() => updateSiteImage(undefined)}>
+                      <X size={16} aria-hidden="true" />
+                      移除
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <label className="upload-dropzone">
+                  <ImagePlus size={22} aria-hidden="true" />
+                  <span>上传地块图</span>
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleSiteUpload(event.target.files?.[0])} />
+                </label>
+              )}
+            </div>
+
             <SiteToolButtons activeTool={activeTool} onToolChange={setActiveTool} ariaLabel="画布地块图标记工具" className="site-tool-grid" />
             {mapEraseAction ? (
               <button className="site-erase-button" type="button" onClick={() => updateSiteMarkup(clearSiteMarkupByTool(siteMarkup, mapEraseAction.tool))}>
@@ -355,6 +274,7 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
                 {mapEraseAction.label}
               </button>
             ) : null}
+
             {project.siteImage ? (
               <div
                 ref={siteCanvasRef}
@@ -368,46 +288,354 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
                 <img src={project.siteImage.url} alt="当前上传的地块图" />
                 <SiteMarkupOverlay markup={siteMarkup} />
               </div>
-            ) : (
-              <label className="site-placeholder">
-                <ImagePlus size={34} aria-hidden="true" />
-                <span>上传地块图后，可在图上绘制边界、建筑轮廓并标记入口与主观景面</span>
-                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleSiteUpload(event.target.files?.[0])} />
-              </label>
-            )}
+            ) : null}
+            <SiteAnalysisSummary siteAnalysis={siteAnalysis} />
             <p className="site-edit-hint">{activeSiteEditHint}</p>
           </section>
 
-          <section className="analysis-panel" aria-label="场地解析与需求确认">
+          <section className="control-card analysis-panel" aria-label="场地解析与需求确认">
+            <RequirementSummary confirmation={requirementConfirmation} />
             <DataCard title="场地解析数据" data={siteAnalysis} />
             <RequirementCard confirmation={requirementConfirmation} onChange={updateRequirement} />
           </section>
 
-          <section className="ai-image-panel" aria-label="AI 图像结果">
-            {aiImageUrl ? (
-              <img src={aiImageUrl} alt={`${plan.name} AI 生成图`} />
-            ) : (
-              <div className="ai-placeholder">
-                <WandSparkles size={34} aria-hidden="true" />
-                <span>AI 图像未生成时，左侧规则方案仍可导出</span>
-              </div>
-            )}
-            <div className="ai-panel-footer">
-              <p>{aiStatus}</p>
+          <section className="control-card generation-controls">
+            <h2>生成控制</h2>
+            <GenerationControls
+              parameters={project.parameters}
+              seed={project.seed}
+              activeTool={activeTool}
+              onParameterChange={updateParameter}
+              onToolChange={setActiveTool}
+              onClearActiveMarkup={clearActiveMarkup}
+              onGenerate={handleGenerate}
+              onExportPng={() => {
+                if (svgRef.current) {
+                  void downloadPng(svgRef.current, filename);
+                }
+              }}
+              onExportSvg={() => svgRef.current && downloadSvg(svgRef.current, filename)}
+              onExportJson={() => downloadJson({ project, plan, siteAnalysis, requirementConfirmation, ruleExplanations: plan.ruleExplanations ?? [] }, filename)}
+            />
+            {latestError ? <ErrorNotice error={latestError} /> : null}
+          </section>
+        </aside>
+
+        <section className="plan-stage" aria-label="苏式庭院概念平面预览">
+          <header className="plan-stage-header">
+            <div>
+              <h2>方案预览</h2>
+              <p>{project.name}</p>
             </div>
+            <PlanToolbar />
+          </header>
+
+          <div className="plan-tabs" role="tablist" aria-label="方案视图">
+            <button className="active" type="button">综合平面图</button>
+            <button type="button">动线分析</button>
+            <button type="button">视线分析</button>
+            <button type="button">功能分区</button>
+          </div>
+
+          <section className="ai-image-panel" aria-label="AI 图像结果">
+            <div className="view-toggle" role="group" aria-label="图像展示方式">
+              <button className="active" type="button">SVG平面</button>
+              <button type="button" aria-label="生成 AI 图像" onClick={() => void handleAiGenerate('generate')} disabled={isGeneratingImage}>
+                AI展示图
+              </button>
+              <button type="button" onClick={() => void handleAiGenerate('edit')} disabled={isGeneratingImage || !aiImageUrl}>
+                编辑当前图像
+              </button>
+            </div>
+            <p>{aiStatus}</p>
           </section>
 
-          <section className="svg-baseline-panel" aria-label="规则方案基线预览">
+          <section className="plan-canvas svg-baseline-panel" aria-label="规则方案基线预览">
             <GardenPreview plan={plan} svgRef={svgRef} />
           </section>
+
+          <footer className="canvas-status">
+            <span>当前策略：入口障景 → 曲径入园 → 水院展开 → 茶庭收束</span>
+            <span>已生成图层：边界 / 建筑 / 水体 / 路径 / 构筑物 / 植物 / 景墙 / 视线 / 标注</span>
+            <button type="button" aria-label="图层">
+              <Layers size={18} aria-hidden="true" />
+            </button>
+          </footer>
+        </section>
+
+        <ExplanationPanel planSummary={plan.summary} status={status} customPrompt={project.customPrompt} />
+      </div>
+    </section>
+  );
+}
+
+function TopAppBar({ onExport }: { onExport: () => void }) {
+  return (
+    <header className="top-app-bar">
+      <div className="app-brand">
+        <div className="brand-mark" aria-hidden="true">
+          <Building2 size={28} />
         </div>
-        <footer className="summary-strip">
-          {plan.summary.map((item) => (
-            <span key={item}>{item}</span>
-          ))}
-        </footer>
-      </section>
-    </>
+        <div>
+          <h1>苏式庭院景观概念方案生成器</h1>
+          <p>场地解析、需求确认、园林规则、方案生成</p>
+        </div>
+      </div>
+      <div className="top-actions">
+        <button type="button">
+          <ImagePlus size={16} aria-hidden="true" />
+          示例
+        </button>
+        <button type="button">
+          <CircleHelp size={16} aria-hidden="true" />
+          帮助
+        </button>
+        <button type="button">
+          <Save size={16} aria-hidden="true" />
+          保存项目
+        </button>
+        <button type="button" onClick={onExport}>
+          <Upload size={16} aria-hidden="true" />
+          导出
+        </button>
+        <button className="user-menu" type="button">
+          <span aria-hidden="true" />
+          园林设计师
+          <ChevronDown size={15} aria-hidden="true" />
+        </button>
+      </div>
+    </header>
+  );
+}
+
+function ProcessStepper() {
+  const steps = ['场地解析', '需求确认', '园林规则', '方案生成'];
+
+  return (
+    <nav className="stepper" aria-label="方案生成流程">
+      {steps.map((step, index) => (
+        <div className={index === steps.length - 1 ? 'step active' : 'step complete'} key={step}>
+          <span>{index === steps.length - 1 ? index + 1 : <Check size={14} aria-hidden="true" />}</span>
+          <strong>{step}</strong>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+function SiteAnalysisSummary({ siteAnalysis }: { siteAnalysis: SiteAnalysisData }) {
+  const rows: Array<[keyof SiteAnalysisData, string]> = [
+    ['siteBoundary', siteAnalysis.siteBoundary],
+    ['buildingFootprint', siteAnalysis.buildingFootprint],
+    ['mainEntrance', siteAnalysis.mainEntrance],
+    ['mainViewSide', siteAnalysis.mainViewSide],
+  ];
+
+  return (
+    <ul className="analysis-checklist" aria-label="场地解析完成项">
+      {rows.map(([key, value]) => (
+        <li key={key}>
+          <Check size={14} aria-hidden="true" />
+          <span>{siteAnalysisLabels[key]}</span>
+          <strong>{value === '待确认' ? '待确认' : '已确认'}</strong>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RequirementSummary({ confirmation }: { confirmation: RequirementConfirmation }) {
+  const rows: Array<[string, string[]]> = [
+    ['核心功能', [confirmation.functionalNeeds]],
+    ['风格', [confirmation.stylePreference]],
+    ['核心空间', [confirmation.waterRatio, confirmation.structureTypes]],
+    ['主要元素', [confirmation.landscapeElements, confirmation.plantPreference]],
+    ['私密性', ['高']],
+  ];
+
+  return (
+    <div className="requirement-summary">
+      <div className="card-title-row">
+        <div>
+          <h2>需求确认</h2>
+          <p>查看详情</p>
+        </div>
+        <ChevronDown size={16} aria-hidden="true" />
+      </div>
+      {rows.map(([label, values]) => (
+        <div className="requirement-chip-row" key={label}>
+          <span>{label}</span>
+          <div>
+            {values.map((value) => (
+              <strong key={value}>{value}</strong>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GenerationControls({
+  parameters,
+  seed,
+  activeTool,
+  onParameterChange,
+  onToolChange,
+  onClearActiveMarkup,
+  onGenerate,
+  onExportPng,
+  onExportSvg,
+  onExportJson,
+}: {
+  parameters: GardenParameters;
+  seed: number;
+  activeTool: SiteMarkupTool;
+  onParameterChange: <K extends keyof GardenParameters>(key: K, value: GardenParameters[K]) => void;
+  onToolChange: (tool: SiteMarkupTool) => void;
+  onClearActiveMarkup: () => void;
+  onGenerate: () => void;
+  onExportPng: () => void;
+  onExportSvg: () => void;
+  onExportJson: () => void;
+}) {
+  return (
+    <div className="generation-stack">
+      <Slider label="水景比例" value={parameters.waterRatio} onChange={(value) => onParameterChange('waterRatio', value)} />
+      <SegmentedControl label="山石比例" value={parameters.rockDensity} onChange={(value) => onParameterChange('rockDensity', value)} />
+      <SegmentedControl label="植物密度" value={parameters.plantingDensity} onChange={(value) => onParameterChange('plantingDensity', value)} />
+      <ToggleRow label="视线箭头" checked />
+      <ToggleRow label="标注" checked />
+      <div className="seed-row">
+        <span>随机种子</span>
+        <strong>{seed}</strong>
+        <button type="button" onClick={onGenerate} aria-label="刷新随机种子">
+          <RefreshCw size={14} aria-hidden="true" />
+        </button>
+      </div>
+      <SiteToolButtons activeTool={activeTool} onToolChange={onToolChange} ariaLabel="辅助地块图标记工具" />
+      <button type="button" onClick={onClearActiveMarkup}>
+        <X size={16} aria-hidden="true" />
+        {redrawActionLabel[activeTool]}
+      </button>
+      <button className="primary-action" type="button" onClick={onGenerate}>
+        <WandSparkles size={18} aria-hidden="true" />
+        生成方案
+      </button>
+      <button type="button" onClick={onExportPng}>
+        <ImageDown size={18} aria-hidden="true" />
+        导出 PNG
+      </button>
+      <button type="button" onClick={onExportSvg}>
+        <Download size={18} aria-hidden="true" />
+        导出 SVG
+      </button>
+      <button type="button" onClick={onExportJson}>
+        <FileJson size={18} aria-hidden="true" />
+        导出 JSON
+      </button>
+    </div>
+  );
+}
+
+function SegmentedControl({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  const options = [
+    ['低', 28],
+    ['中', 55],
+    ['高', 82],
+  ] as const;
+  const activeLabel = value < 40 ? '低' : value > 70 ? '高' : '中';
+
+  return (
+    <div className="segmented-row">
+      <span>{label}</span>
+      <div role="group" aria-label={label}>
+        {options.map(([optionLabel, optionValue]) => (
+          <button className={activeLabel === optionLabel ? 'active' : undefined} type="button" key={optionLabel} onClick={() => onChange(optionValue)}>
+            {optionLabel}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ToggleRow({ label, checked }: { label: string; checked: boolean }) {
+  return (
+    <div className="toggle-row">
+      <span>{label}</span>
+      <button className={checked ? 'toggle active' : 'toggle'} type="button" aria-pressed={checked} aria-label={label}>
+        <span />
+      </button>
+    </div>
+  );
+}
+
+function PlanToolbar() {
+  return (
+    <div className="plan-toolbar" aria-label="画布工具">
+      <button type="button">
+        <Maximize2 size={16} aria-hidden="true" />
+        适应画布
+      </button>
+      <button type="button">
+        缩放 100%
+        <ChevronDown size={15} aria-hidden="true" />
+      </button>
+      <button type="button">
+        <RotateCcw size={16} aria-hidden="true" />
+        重置
+      </button>
+    </div>
+  );
+}
+
+function ExplanationPanel({ planSummary, status, customPrompt }: { planSummary: string[]; status: string; customPrompt: string }) {
+  const explanations = [
+    ['总体布局说明', status],
+    ['功能分区说明', planSummary[0] ?? '以水院、茶庭与入口空间组织功能。'],
+    ['动线说明', '入口障景、曲径入园、水院展开、月洞门过渡，形成层层递进的游赏节奏。'],
+    ['景观节点说明', planSummary[1] ?? '以水面、叠石、亭榭、竹林和茶庭组织视线。'],
+    ['苏州园林手法', '借景、对景、障景、框景和漏景综合运用，形成小中见大的园林体验。'],
+    ['周边关系回应', '通过墙体、植物和水面组织边界，控制邻里视线并保留可借景方向。'],
+    ['可落地性提醒', customPrompt],
+  ];
+
+  return (
+    <aside className="explanation-panel" aria-label="方案解释">
+      <h2>方案解释</h2>
+      <div className="explanation-list">
+        {explanations.map(([title, body], index) => (
+          <details open={index === 0} key={title}>
+            <summary>
+              <Layers size={17} aria-hidden="true" />
+              {title}
+              <ChevronDown size={15} aria-hidden="true" />
+            </summary>
+            <p>{body}</p>
+          </details>
+        ))}
+      </div>
+      <OutputChecklist />
+    </aside>
+  );
+}
+
+function OutputChecklist() {
+  const outputs = ['平面图（SVG）', '方案说明（PDF）', 'PNG 图片', 'SVG 文件', 'JSON 数据'];
+
+  return (
+    <section className="output-checklist" aria-label="输出内容">
+      <h2>输出内容</h2>
+      <ul>
+        {outputs.map((item) => (
+          <li key={item}>
+            <Check size={15} aria-hidden="true" />
+            {item}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

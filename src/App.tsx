@@ -74,7 +74,7 @@ export default function App() {
   const sortedProjects = useMemo(() => [...projects].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [projects]);
 
   return (
-    <main className="app-shell">
+    <main className="app-shell v2-shell">
       <ProjectHistory
         projects={sortedProjects}
         activeProjectId={activeProject.id}

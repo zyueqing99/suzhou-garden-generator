@@ -4,6 +4,21 @@ import { createDefaultProject } from '../domain/project';
 import { GardenWorkspace, getMapEraseAction } from './GardenWorkspace';
 
 describe('GardenWorkspace', () => {
+  it('renders the second-version workspace regions from the prototype', () => {
+    const project = createDefaultProject({ now: '2026-05-04T10:00:00.000Z', seed: 31, name: '第二版方案' });
+    const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
+
+    expect(markup).toContain('场地解析');
+    expect(markup).toContain('需求确认');
+    expect(markup).toContain('园林规则');
+    expect(markup).toContain('方案生成');
+    expect(markup).toContain('方案预览');
+    expect(markup).toContain('综合平面图');
+    expect(markup).toContain('SVG平面');
+    expect(markup).toContain('方案解释');
+    expect(markup).toContain('输出内容');
+  });
+
   it('renders the active project and fallback preview controls', () => {
     const project = createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 11, name: '留园水院' });
     const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
