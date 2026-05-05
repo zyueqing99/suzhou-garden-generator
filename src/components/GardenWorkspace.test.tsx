@@ -44,6 +44,49 @@ describe('GardenWorkspace', () => {
     expect(markup).toContain('植物倾向');
   });
 
+  it('does not show an older generation error when the newest generation succeeded', () => {
+    const project = createDefaultProject({ now: '2026-05-04T12:20:00.000Z', seed: 33, name: '成功覆盖失败' });
+    const markup = renderToStaticMarkup(
+      <GardenWorkspace
+        project={{
+          ...project,
+          generations: [
+            {
+              id: 'success',
+              projectId: project.id,
+              createdAt: '2026-05-04T12:22:00.000Z',
+              mode: 'generate',
+              status: 'succeeded',
+              prompt: 'test prompt',
+              provider: 'vectorengine',
+              model: 'gpt-image-2',
+              imageUrl: 'https://example.com/image.png',
+            },
+            {
+              id: 'missing-key',
+              projectId: project.id,
+              createdAt: '2026-05-04T12:21:00.000Z',
+              mode: 'generate',
+              status: 'failed',
+              prompt: 'test prompt',
+              provider: 'vectorengine',
+              model: 'gpt-image-2',
+              error: {
+                code: 'missing_api_key',
+                message: 'Missing VECTOR_ENGINE_API_KEY on local proxy server.',
+                retryable: false,
+              },
+            },
+          ],
+        }}
+        onProjectChange={vi.fn()}
+        onGenerationAdded={vi.fn()}
+      />,
+    );
+
+    expect(markup).not.toContain('Missing VECTOR_ENGINE_API_KEY');
+  });
+
   it('renders site markup first and keeps AI and SVG previews below the confirmation area', () => {
     const project = createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 21, name: '布局调整' });
     const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);

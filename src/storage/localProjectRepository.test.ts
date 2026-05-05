@@ -76,4 +76,48 @@ describe('createLocalProjectRepository', () => {
 
     expect(await repository.load(project.id)).toEqual(project);
   });
+
+  it('drops stale missing API key generation failures from saved projects', async () => {
+    const repository = createLocalProjectRepository('test-projects');
+    const project: GardenProject = {
+      ...createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 10, name: 'Recovered Project' }),
+      generations: [
+        {
+          id: 'missing-key-failure',
+          projectId: 'garden-10',
+          createdAt: '2026-05-02T10:02:00.000Z',
+          mode: 'generate',
+          status: 'failed',
+          prompt: 'test prompt',
+          provider: 'vectorengine',
+          model: 'gpt-image-2',
+          error: {
+            code: 'missing_api_key',
+            message: 'Missing VECTOR_ENGINE_API_KEY on local proxy server.',
+            retryable: false,
+          },
+        },
+        {
+          id: 'timeout-failure',
+          projectId: 'garden-10',
+          createdAt: '2026-05-02T10:01:00.000Z',
+          mode: 'generate',
+          status: 'failed',
+          prompt: 'test prompt',
+          provider: 'vectorengine',
+          model: 'gpt-image-2',
+          error: {
+            code: 'provider_timeout',
+            message: 'Image generation timed out.',
+            retryable: true,
+          },
+        },
+      ],
+    };
+
+    await repository.save(project);
+
+    const loaded = await repository.load(project.id);
+    expect(loaded?.generations.map((generation) => generation.id)).toEqual(['timeout-failure']);
+  });
 });

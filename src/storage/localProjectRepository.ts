@@ -13,7 +13,7 @@ export function createLocalProjectRepository(storageKey = DEFAULT_STORAGE_KEY): 
     },
     async save(project) {
       const projects = readProjects(storageKey);
-      const nextProjects = [project, ...projects.filter((item) => item.id !== project.id)];
+      const nextProjects = [sanitizeProject(project), ...projects.filter((item) => item.id !== project.id)];
       writeProjects(storageKey, nextProjects);
     },
     async delete(id) {
@@ -33,10 +33,17 @@ function readProjects(storageKey: string): GardenProject[] {
 
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isGardenProject) : [];
+    return Array.isArray(parsed) ? parsed.filter(isGardenProject).map(sanitizeProject) : [];
   } catch {
     return [];
   }
+}
+
+function sanitizeProject(project: GardenProject): GardenProject {
+  return {
+    ...project,
+    generations: project.generations.filter((generation) => generation.error?.code !== 'missing_api_key'),
+  };
 }
 
 function writeProjects(storageKey: string, projects: GardenProject[]) {

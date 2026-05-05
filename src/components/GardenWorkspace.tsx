@@ -74,7 +74,8 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
     () => generateGardenPlan(project.parameters, project.seed, hasUsableSiteContext(ruleLayoutContext) ? ruleLayoutContext : undefined),
     [project.parameters, project.seed, ruleLayoutContext],
   );
-  const latestError = project.generations.find((generation) => generation.status === 'failed' && generation.error)?.error;
+  const latestGeneration = project.generations[0];
+  const latestError = latestGeneration?.status === 'failed' ? latestGeneration.error : undefined;
   const mapEraseAction = getMapEraseAction(activeTool, siteMarkup);
 
   useEffect(() => {
