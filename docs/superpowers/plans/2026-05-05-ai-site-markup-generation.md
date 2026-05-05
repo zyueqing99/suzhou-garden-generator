@@ -30,13 +30,15 @@
 - 新建：`src/siteMarkupCapture.ts`
 - 测试：`src/siteMarkupCapture.test.ts`
 
+**关键要求：** `captureAnnotatedSiteImage()` 必须返回一张新的 PNG data URL。这张新图由“上传的场地图原图 + 标注覆盖层”合成，后续 AI 请求只能使用这张带标注的新图，不能直接把上传的场地图原图传给 `gpt-image-2`。
+
 - [ ] **步骤 1：写失败测试**
 
 新建 `src/siteMarkupCapture.test.ts`：
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { buildSiteMarkupSvg, createAnnotatedSiteImagePayload } from './siteMarkupCapture';
+import { buildSiteMarkupSvg } from './siteMarkupCapture';
 import type { SiteMarkup } from './siteAnalysis';
 
 const markup: SiteMarkup = {
@@ -67,17 +69,11 @@ describe('siteMarkupCapture', () => {
     expect(svg).toContain('景观方向');
   });
 
-  it('生成可序列化的场地图生成载荷', () => {
-    const payload = createAnnotatedSiteImagePayload({
-      imageUrl: 'data:image/png;base64,abc',
-      markup,
-      width: 1000,
-      height: 600,
-    });
+  it('覆盖层 SVG 不包含原图地址，避免误把原图当成生成输入', () => {
+    const svg = buildSiteMarkupSvg(markup, { width: 1000, height: 600 });
 
-    expect(payload.imageUrl).toBe('data:image/png;base64,abc');
-    expect(payload.overlaySvg).toContain('景观方向');
-    expect(payload.dimensions).toEqual({ width: 1000, height: 600 });
+    expect(svg).not.toContain('data:image/png;base64');
+    expect(svg).toContain('景观方向');
   });
 });
 ```
@@ -102,30 +98,6 @@ import type { SiteMarkup, SitePoint } from './siteAnalysis';
 export interface SiteMarkupCaptureSize {
   width: number;
   height: number;
-}
-
-export interface AnnotatedSiteImagePayload {
-  imageUrl: string;
-  overlaySvg: string;
-  dimensions: SiteMarkupCaptureSize;
-}
-
-export function createAnnotatedSiteImagePayload({
-  imageUrl,
-  markup,
-  width,
-  height,
-}: {
-  imageUrl: string;
-  markup: SiteMarkup;
-  width: number;
-  height: number;
-}): AnnotatedSiteImagePayload {
-  return {
-    imageUrl,
-    overlaySvg: buildSiteMarkupSvg(markup, { width, height }),
-    dimensions: { width, height },
-  };
 }
 
 export async function captureAnnotatedSiteImage({
@@ -153,6 +125,7 @@ export async function captureAnnotatedSiteImage({
   context.drawImage(image, 0, 0, width, height);
   drawMarkup(context, markup, { width, height });
 
+  // 返回的是新合成的带标注 PNG，不是上传场地图原图。
   return canvas.toDataURL('image/png');
 }
 
@@ -567,6 +540,8 @@ git commit -m "feat: build prompts from annotated site images"
 **文件：**
 - 修改：`src/exporters.ts`
 
+**边界说明：** 本任务只负责“导出已有图片 data URL”。它不负责合成带标注场地图。带标注场地图必须由任务 1 的 `captureAnnotatedSiteImage()` 生成，并在任务 5 的生成请求中传给 `gpt-image-2`。
+
 - [ ] **步骤 1：替换导出工具**
 
 把 `src/exporters.ts` 改为：
@@ -776,6 +751,8 @@ const handleGenerate = async () => {
   }
 };
 ```
+
+这里的 `annotatedImageUrl` 是 `captureAnnotatedSiteImage()` 合成的新 PNG data URL，包含场地图原图和标注覆盖层。不要把 `project.siteImage.url` 直接传给 `referenceImageUrl`。
 
 - [ ] **步骤 5：统一“景观方向”文案**
 
