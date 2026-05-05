@@ -540,7 +540,7 @@ git commit -m "feat: build prompts from annotated site images"
 **文件：**
 - 修改：`src/exporters.ts`
 
-**边界说明：** 本任务只负责“导出已有图片 data URL”。它不负责合成带标注场地图。带标注场地图必须由任务 1 的 `captureAnnotatedSiteImage()` 生成，并在任务 5 的生成请求中传给 `gpt-image-2`。
+**边界说明：** 本任务只负责“导出已有图片 data URL”。它不负责合成带标注场地图。带标注场地图必须由任务 1 的 `captureAnnotatedSiteImage()` 生成，并在任务 6 的生成请求中传给 `gpt-image-2`。
 
 - [ ] **步骤 1：替换导出工具**
 
@@ -584,16 +584,17 @@ npm run typecheck
 
 - [ ] **步骤 3：暂不单独提交**
 
-这个任务会导致类型检查失败，不单独提交。继续任务 5，等 `GardenWorkspace.tsx` 一起改完后再提交。
+这个任务会导致类型检查失败，不单独提交。继续任务 5 和任务 6，等任务 7 接入 PNG/JSON 导出后再统一提交 `src/exporters.ts`。
 
 ---
 
-### 任务 5：把 `GardenWorkspace` 重构为右侧三标签工作台
+### 任务 5：移除 SVG 流程并建立 `场地标注` 标签
 
 **文件：**
 - 修改：`src/components/GardenWorkspace.tsx`
-- 修改：`src/exporters.ts`
 - 测试：`src/components/GardenWorkspace.test.tsx`
+
+**边界：** 本任务只做右侧主窗口的 `场地标注` 标签、左侧上传和标注工具、删除用户可见 SVG。不要在本任务接入 AI 生成请求，也不要实现 `生成方案` 和 `方案说明` 标签内容。
 
 - [ ] **步骤 1：替换工作台测试**
 
@@ -605,10 +606,8 @@ it('渲染场地图标注驱动的工作台标签，并移除 SVG 预览流程',
   const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
 
   expect(markup).toContain('场地标注');
-  expect(markup).toContain('生成方案');
-  expect(markup).toContain('方案说明');
   expect(markup).toContain('上传场地图');
-  expect(markup).toContain('生成控制');
+  expect(markup).toContain('标注工具');
   expect(markup).not.toContain('SVG平面');
   expect(markup).not.toContain('导出 SVG');
   expect(markup).not.toContain('规则方案基线预览');
@@ -649,13 +648,9 @@ npm test -- src/components/GardenWorkspace.test.tsx
 
 - [ ] **步骤 3：更新导入和顶层状态**
 
-在 `src/components/GardenWorkspace.tsx` 中删除 `downloadPng`、`downloadSvg`、`GardenPreview`、`generateGardenPlan`、`createRuleLayoutContext`、`hasUsableSiteContext` 的导入，新增：
+在 `src/components/GardenWorkspace.tsx` 中删除 `downloadPng`、`downloadSvg`、`GardenPreview`、`generateGardenPlan`、`createRuleLayoutContext`、`hasUsableSiteContext` 的导入。本任务只需要保留标注相关依赖，并新增：
 
 ```ts
-import { buildAiImageRequest, buildSiteImagePrompt, normalizeUnknownGenerationError, requestAiImage } from '../aiImageClient';
-import { type PlanExplanationSection, buildPlanExplanation } from '../planExplanation';
-import { captureAnnotatedSiteImage } from '../siteMarkupCapture';
-import { downloadImageDataUrl, downloadJson } from '../exporters';
 import type { GardenParameters } from '../gardenGenerator';
 import type { ReactNode, RefObject } from 'react';
 ```
@@ -672,16 +667,180 @@ const [activeTool, setActiveTool] = useState<SiteMarkupTool>('boundary');
 const siteCanvasRef = useRef<HTMLDivElement | null>(null);
 ```
 
+- [ ] **步骤 4：统一“景观方向”文案**
+
+把 `mainViewSide` 的用户可见文案改为“景观方向”，字段名保留兼容：
+
+```ts
+const activeToolLabel: Record<SiteMarkupTool, string> = {
+  boundary: '绘制地块边界',
+  buildingFootprint: '绘制建筑轮廓',
+  mainEntrance: '标记主入口',
+  mainViewSide: '标记景观方向',
+};
+
+const activeToolHint: Record<SiteMarkupTool, string> = {
+  boundary: '在放大场地图上点击添加边界点，至少 3 个点可确认边界。',
+  buildingFootprint: '在放大场地图上点击添加建筑轮廓点，至少 3 个点可确认轮廓。',
+  mainEntrance: '在放大场地图上点击一次标记主入口位置。',
+  mainViewSide: '在放大场地图上点击一次标记主要景观方向。',
+};
+
+const siteAnalysisLabels: Record<keyof SiteAnalysisData, string> = {
+  siteBoundary: '地块边界',
+  buildingFootprint: '建筑轮廓',
+  mainEntrance: '主入口',
+  mainViewSide: '景观方向',
+  neighborInterface: '相邻界面',
+  borrowedViewDirection: '借景方向',
+  screeningRequired: '需遮挡方向',
+};
+```
+
+第四个工具按钮改为：
+
+```tsx
+<ToolButton icon={<ScanLine size={17} aria-hidden="true" />} label="标记景观方向" active={activeTool === 'mainViewSide'} onClick={() => onToolChange('mainViewSide')} />
+```
+
+- [ ] **步骤 5：替换 JSX 为左侧控制和右侧 `场地标注` 标签**
+
+保留 `TopAppBar` 和 `ProcessStepper`，把 `.workspace-grid` 内部替换为左侧控制区和右侧主窗口。右侧此时只渲染 `场地标注` 标签内容：
+
+```tsx
+<div className="workspace-grid site-generation-grid">
+  <aside className="workspace-controls" aria-label="左侧生成控制">
+    <section className="control-card site-upload-panel" aria-label="场地图上传">
+      <div className="card-title-row">
+        <div>
+          <h2>场地图</h2>
+          <p>上传后在右侧大图中标注</p>
+        </div>
+        <ChevronDown size={16} aria-hidden="true" />
+      </div>
+      <SiteImageUploader siteImage={project.siteImage} onUpload={handleSiteUpload} onRemove={() => updateSiteImage(undefined)} />
+    </section>
+
+    <section className="control-card site-tools-panel" aria-label="标注工具">
+      <h2>标注工具</h2>
+      <SiteToolButtons activeTool={activeTool} onToolChange={setActiveTool} ariaLabel="放大场地图标注工具" className="site-tool-grid" />
+      {mapEraseAction ? (
+        <button className="site-erase-button" type="button" onClick={() => updateSiteMarkup(clearSiteMarkupByTool(siteMarkup, mapEraseAction.tool))}>
+          <X size={16} aria-hidden="true" />
+          {mapEraseAction.label}
+        </button>
+      ) : null}
+      <SiteAnalysisSummary siteAnalysis={siteAnalysis} />
+      <p className="site-edit-hint">{activeSiteEditHint}</p>
+    </section>
+  </aside>
+
+  <section className="site-stage" aria-label="右侧主窗口">
+    <WorkspaceTabs activeTab={activeTab} onTabChange={setActiveTab} availableTabs={['markup']} />
+    <SiteMarkupStage
+      siteImage={project.siteImage}
+      siteMarkup={siteMarkup}
+      activeTool={activeTool}
+      siteCanvasRef={siteCanvasRef}
+      onUpload={handleSiteUpload}
+      onCanvasClick={handleSiteCanvasClick}
+      onCanvasKeyDown={handleSiteCanvasKeyDown}
+    />
+  </section>
+</div>
+```
+
+- [ ] **步骤 6：新增 `场地标注` 相关小组件**
+
+在 `GardenWorkspace.tsx` 中新增 `WorkspaceTabs`、`SiteImageUploader`、`SiteMarkupStage`：
+
+- `WorkspaceTabs`：本任务只渲染 `场地标注`。
+- `SiteImageUploader`：处理左侧上传和移除。
+- `SiteMarkupStage`：只在右侧放大场地图中接收点击标注。
+
+- [ ] **步骤 7：运行聚焦测试**
+
+```bash
+npm test -- src/components/GardenWorkspace.test.tsx
+```
+
+预期：通过。
+
+- [ ] **步骤 8：提交**
+
+```bash
+git add src/components/GardenWorkspace.tsx src/components/GardenWorkspace.test.tsx
+git commit -m "feat: replace svg preview with site markup stage"
+```
+
+---
+
+### 任务 6：接入 `生成方案` 标签和 AI 生成调用
+
+**文件：**
+- 修改：`src/components/GardenWorkspace.tsx`
+- 测试：`src/components/GardenWorkspace.test.tsx`
+
+**边界：** 本任务只新增 `生成方案` 标签、生成按钮和 AI 生成调用。`方案说明` 和导出控制放到任务 7。
+
+- [ ] **步骤 1：新增生成方案测试**
+
+在 `src/components/GardenWorkspace.test.tsx` 中新增：
+
+```ts
+it('渲染生成方案标签并要求使用带标注场地图生成', () => {
+  const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 43, name: '生成方案' });
+  const markup = renderToStaticMarkup(
+    <GardenWorkspace
+      project={{
+        ...project,
+        siteImage: { name: 'site.png', url: 'data:image/png;base64,abc' },
+        siteMarkup: {
+          boundary: [
+            { x: 10, y: 10 },
+            { x: 90, y: 10 },
+            { x: 90, y: 90 },
+          ],
+          buildingFootprint: [
+            { x: 30, y: 20 },
+            { x: 70, y: 20 },
+            { x: 70, y: 40 },
+          ],
+          mainEntrance: { kind: 'mainEntrance', point: { x: 18, y: 82 } },
+        },
+      }}
+      onProjectChange={vi.fn()}
+      onGenerationAdded={vi.fn()}
+    />,
+  );
+
+  expect(markup).toContain('生成方案');
+  expect(markup).toContain('生成控制');
+  expect(markup).toContain('生成方案');
+  expect(markup).not.toContain('编辑当前图像');
+});
+```
+
+- [ ] **步骤 2：运行测试并确认失败**
+
+```bash
+npm test -- src/components/GardenWorkspace.test.tsx
+```
+
+预期：失败，因为还没有 `生成方案` 标签和生成控制。
+
+- [ ] **步骤 3：新增 AI 生成相关导入**
+
+```ts
+import { buildAiImageRequest, buildSiteImagePrompt, normalizeUnknownGenerationError, requestAiImage } from '../aiImageClient';
+import { captureAnnotatedSiteImage } from '../siteMarkupCapture';
+```
+
 - [ ] **步骤 4：替换生成逻辑**
 
 删除旧 `handleGenerate` 和 `handleAiGenerate`，改为：
 
 ```ts
-const explanation = useMemo(
-  () => buildPlanExplanation({ projectName: project.name, siteAnalysis, parameters: project.parameters, customPrompt: project.customPrompt }),
-  [project.name, siteAnalysis, project.parameters, project.customPrompt],
-);
-
 const canGenerate = Boolean(project.siteImage) && siteMarkup.boundary.length >= 3 && siteMarkup.buildingFootprint.length >= 3 && Boolean(siteMarkup.mainEntrance);
 
 const handleGenerate = async () => {
@@ -754,120 +913,102 @@ const handleGenerate = async () => {
 
 这里的 `annotatedImageUrl` 是 `captureAnnotatedSiteImage()` 合成的新 PNG data URL，包含场地图原图和标注覆盖层。不要把 `project.siteImage.url` 直接传给 `referenceImageUrl`。
 
-- [ ] **步骤 5：统一“景观方向”文案**
+- [ ] **步骤 5：新增 `生成方案` 标签内容**
 
-把 `mainViewSide` 的用户可见文案改为“景观方向”，字段名保留兼容：
+```tsx
+<WorkspaceTabs activeTab={activeTab} onTabChange={setActiveTab} availableTabs={['markup', 'result']} />
+{activeTab === 'result' ? <GeneratedResultStage imageUrl={aiImageUrl} status={aiStatus} /> : null}
+```
+
+- [ ] **步骤 6：新增生成控制**
+
+在左侧新增 `GenerationControls`，本任务只接入 `生成方案` 按钮，不接入导出按钮：
+
+```tsx
+<GenerationControls
+  parameters={project.parameters}
+  seed={project.seed}
+  canGenerate={canGenerate}
+  isGenerating={isGeneratingImage}
+  onParameterChange={updateParameter}
+  onGenerate={() => void handleGenerate()}
+/>
+```
+
+- [ ] **步骤 7：运行聚焦测试**
+
+```bash
+npm test -- src/components/GardenWorkspace.test.tsx src/aiImageClient.test.ts src/siteMarkupCapture.test.ts
+```
+
+预期：通过。
+
+- [ ] **步骤 8：提交**
+
+```bash
+git add src/components/GardenWorkspace.tsx src/components/GardenWorkspace.test.tsx
+git commit -m "feat: generate ai plan from annotated site image"
+```
+
+---
+
+### 任务 7：接入 `方案说明` 标签和导出控制
+
+**文件：**
+- 修改：`src/components/GardenWorkspace.tsx`
+- 修改：`src/exporters.ts`
+- 测试：`src/components/GardenWorkspace.test.tsx`
+
+**边界：** 本任务只新增 `方案说明` 标签、PNG/JSON 导出和 `planExplanation` 的 UI 接入。
+
+- [ ] **步骤 1：新增方案说明和导出测试**
+
+在 `src/components/GardenWorkspace.test.tsx` 中新增：
 
 ```ts
-const activeToolLabel: Record<SiteMarkupTool, string> = {
-  boundary: '绘制地块边界',
-  buildingFootprint: '绘制建筑轮廓',
-  mainEntrance: '标记主入口',
-  mainViewSide: '标记景观方向',
-};
+it('渲染方案说明标签和 PNG/JSON 导出入口', () => {
+  const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 44, name: '说明导出' });
+  const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
 
-const activeToolHint: Record<SiteMarkupTool, string> = {
-  boundary: '在放大场地图上点击添加边界点，至少 3 个点可确认边界。',
-  buildingFootprint: '在放大场地图上点击添加建筑轮廓点，至少 3 个点可确认轮廓。',
-  mainEntrance: '在放大场地图上点击一次标记主入口位置。',
-  mainViewSide: '在放大场地图上点击一次标记主要景观方向。',
-};
-
-const siteAnalysisLabels: Record<keyof SiteAnalysisData, string> = {
-  siteBoundary: '地块边界',
-  buildingFootprint: '建筑轮廓',
-  mainEntrance: '主入口',
-  mainViewSide: '景观方向',
-  neighborInterface: '相邻界面',
-  borrowedViewDirection: '借景方向',
-  screeningRequired: '需遮挡方向',
-};
+  expect(markup).toContain('方案说明');
+  expect(markup).toContain('导出 PNG');
+  expect(markup).toContain('导出 JSON');
+  expect(markup).not.toContain('导出 SVG');
+});
 ```
 
-第四个工具按钮改为：
+- [ ] **步骤 2：运行测试并确认失败**
+
+```bash
+npm test -- src/components/GardenWorkspace.test.tsx
+```
+
+预期：失败，因为还没有 `方案说明` 标签和导出入口。
+
+- [ ] **步骤 3：接入方案说明依赖**
+
+```ts
+import { type PlanExplanationSection, buildPlanExplanation } from '../planExplanation';
+import { downloadImageDataUrl, downloadJson } from '../exporters';
+```
+
+新增：
+
+```ts
+const explanation = useMemo(
+  () => buildPlanExplanation({ projectName: project.name, siteAnalysis, parameters: project.parameters, customPrompt: project.customPrompt }),
+  [project.name, siteAnalysis, project.parameters, project.customPrompt],
+);
+```
+
+- [ ] **步骤 4：新增 `方案说明` 标签内容**
 
 ```tsx
-<ToolButton icon={<ScanLine size={17} aria-hidden="true" />} label="标记景观方向" active={activeTool === 'mainViewSide'} onClick={() => onToolChange('mainViewSide')} />
+<WorkspaceTabs activeTab={activeTab} onTabChange={setActiveTab} availableTabs={['markup', 'result', 'explanation']} />
+{activeTab === 'explanation' ? <ExplanationStage explanation={explanation} siteAnalysis={siteAnalysis} status={status} /> : null}
 ```
 
-- [ ] **步骤 6：替换 JSX 为左侧控制和右侧标签页**
-
-保留 `TopAppBar` 和 `ProcessStepper`，把 `.workspace-grid` 内部替换为左侧控制区和右侧主窗口。右侧必须只通过 `场地标注` 标签执行标注：
-
-```tsx
-<div className="workspace-grid site-generation-grid">
-  <aside className="workspace-controls" aria-label="左侧生成控制">
-    <section className="control-card site-upload-panel" aria-label="场地图上传">
-      <div className="card-title-row">
-        <div>
-          <h2>场地图</h2>
-          <p>上传后在右侧大图中标注</p>
-        </div>
-        <ChevronDown size={16} aria-hidden="true" />
-      </div>
-      <SiteImageUploader siteImage={project.siteImage} onUpload={handleSiteUpload} onRemove={() => updateSiteImage(undefined)} />
-    </section>
-
-    <section className="control-card site-tools-panel" aria-label="标注工具">
-      <h2>标注工具</h2>
-      <SiteToolButtons activeTool={activeTool} onToolChange={setActiveTool} ariaLabel="放大场地图标注工具" className="site-tool-grid" />
-      {mapEraseAction ? (
-        <button className="site-erase-button" type="button" onClick={() => updateSiteMarkup(clearSiteMarkupByTool(siteMarkup, mapEraseAction.tool))}>
-          <X size={16} aria-hidden="true" />
-          {mapEraseAction.label}
-        </button>
-      ) : null}
-      <SiteAnalysisSummary siteAnalysis={siteAnalysis} />
-      <p className="site-edit-hint">{activeSiteEditHint}</p>
-    </section>
-
-    <section className="control-card generation-controls">
-      <h2>生成控制</h2>
-      <GenerationControls
-        parameters={project.parameters}
-        seed={project.seed}
-        canGenerate={canGenerate}
-        isGenerating={isGeneratingImage}
-        canExportPng={Boolean(aiImageUrl)}
-        onParameterChange={updateParameter}
-        onGenerate={() => void handleGenerate()}
-        onExportPng={() => aiImageUrl && downloadImageDataUrl(aiImageUrl, filename)}
-        onExportJson={() => downloadJson({ project, siteAnalysis, generationControls: project.parameters, explanation }, filename)}
-      />
-      {latestError ? <ErrorNotice error={latestError} /> : null}
-    </section>
-  </aside>
-
-  <section className="site-stage" aria-label="右侧主窗口">
-    <WorkspaceTabs activeTab={activeTab} onTabChange={setActiveTab} />
-    {activeTab === 'markup' ? (
-      <SiteMarkupStage
-        siteImage={project.siteImage}
-        siteMarkup={siteMarkup}
-        activeTool={activeTool}
-        siteCanvasRef={siteCanvasRef}
-        onUpload={handleSiteUpload}
-        onCanvasClick={handleSiteCanvasClick}
-        onCanvasKeyDown={handleSiteCanvasKeyDown}
-      />
-    ) : null}
-    {activeTab === 'result' ? <GeneratedResultStage imageUrl={aiImageUrl} status={aiStatus} /> : null}
-    {activeTab === 'explanation' ? <ExplanationStage explanation={explanation} siteAnalysis={siteAnalysis} status={status} /> : null}
-  </section>
-</div>
-```
-
-- [ ] **步骤 7：新增工作台小组件**
-
-在 `GardenWorkspace.tsx` 中新增 `WorkspaceTabs`、`SiteImageUploader`、`SiteMarkupStage`、`GeneratedResultStage`、`ExplanationStage`。这些组件的职责如下：
-
-- `WorkspaceTabs`：渲染 `场地标注 / 生成方案 / 方案说明` 三个标签。
-- `SiteImageUploader`：处理左侧上传和移除。
-- `SiteMarkupStage`：只在右侧放大场地图中接收点击标注。
-- `GeneratedResultStage`：展示 AI 方案图或生成状态。
-- `ExplanationStage`：展示场地解析 JSON 和本地方案说明。
-
-- [ ] **步骤 8：更新 `GenerationControls` 参数并移除 SVG 导出按钮**
+- [ ] **步骤 5：更新 `GenerationControls` 参数并移除 SVG 导出按钮**
 
 `GenerationControls` 接收 `canGenerate`、`isGenerating`、`canExportPng`、`onExportPng`、`onExportJson`，删除 `onExportSvg`。底部按钮应为：
 
@@ -886,24 +1027,24 @@ const siteAnalysisLabels: Record<keyof SiteAnalysisData, string> = {
 </button>
 ```
 
-- [ ] **步骤 9：运行聚焦测试**
+- [ ] **步骤 6：运行聚焦测试**
 
 ```bash
-npm test -- src/components/GardenWorkspace.test.tsx src/aiImageClient.test.ts src/siteMarkupCapture.test.ts src/planExplanation.test.ts
+npm test -- src/components/GardenWorkspace.test.tsx src/planExplanation.test.ts
 ```
 
 预期：通过。
 
-- [ ] **步骤 10：提交**
+- [ ] **步骤 7：提交**
 
 ```bash
 git add src/components/GardenWorkspace.tsx src/components/GardenWorkspace.test.tsx src/exporters.ts
-git commit -m "feat: replace svg workflow with site image tabs"
+git commit -m "feat: add explanation tab and image exports"
 ```
 
 ---
 
-### 任务 6：更新新工作台样式
+### 任务 8：更新新工作台样式
 
 **文件：**
 - 修改：`src/styles.css`
@@ -1028,7 +1169,7 @@ git commit -m "style: support site image generation workspace"
 
 ---
 
-### 任务 7：清理用户可见的 SVG 流程引用
+### 任务 9：清理用户可见的 SVG 流程引用
 
 **文件：**
 - 修改：`src/components/ErrorNotice.tsx`
@@ -1090,7 +1231,7 @@ git commit -m "docs: update architecture for site markup generation"
 
 ---
 
-### 任务 8：完整验证和收尾
+### 任务 10：完整验证和收尾
 
 **文件：**
 - 只修改验证失败所必需的文件。
