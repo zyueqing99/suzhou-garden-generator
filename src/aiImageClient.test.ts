@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildAiImageRequest, buildGardenImagePrompt, buildImagePrompt, extractErrorMessage, extractGenerationError, extractImageUrl } from './aiImageClient';
-import type { GardenParameters, GardenPlan } from './gardenGenerator';
+import { buildAiImageRequest, buildSiteImagePrompt, extractErrorMessage, extractGenerationError, extractImageUrl } from './aiImageClient';
+import type { GardenParameters } from './gardenGenerator';
+import type { SiteAnalysisData } from './siteAnalysis';
 
 const parameters: GardenParameters = {
   courtyardScale: 72,
@@ -12,53 +13,32 @@ const parameters: GardenParameters = {
   focalPoint: 'pavilion',
 };
 
-const plan: GardenPlan = {
-  name: '书香亭榭方案',
-  width: 1080,
-  height: 760,
-  seed: 11,
-  summary: ['水体占比 45%', '植物密度 66%'],
-  elements: [],
+const siteAnalysis: SiteAnalysisData = {
+  siteBoundary: '已确认',
+  buildingFootprint: '已确认',
+  mainEntrance: '西南侧',
+  mainViewSide: '建筑南侧',
+  neighborInterface: '西侧',
+  borrowedViewDirection: '东南侧',
+  screeningRequired: ['西侧', '入口直视方向'],
 };
 
 describe('aiImageClient', () => {
-  it('builds a Suzhou garden prompt from plan parameters', () => {
-    const prompt = buildGardenImagePrompt(plan, parameters);
-
-    expect(prompt).toContain('苏式庭院');
-    expect(prompt).toContain('书香亭榭方案');
-    expect(prompt).toContain('亭榭');
-    expect(prompt).toContain('top-down');
-  });
-
-  it('appends rule explanations as spatial constraints in the generated prompt', () => {
-    const prompt = buildGardenImagePrompt(
-      {
-        ...plan,
-        ruleExplanations: [
-          {
-            ruleId: 'neighbor-bamboo-screen',
-            ruleName: '邻里界面竹影障景',
-            category: 'plant-screening',
-            summary: '西侧以竹林和景墙形成竹影障景。',
-            parameters: '植物密度 66%',
-          },
-        ],
-      },
+  it('从带标注场地图约束构建图像生成 prompt', () => {
+    const prompt = buildSiteImagePrompt({
+      projectName: '苏式庭院方案',
+      siteAnalysis,
       parameters,
-    );
+      customDirection: '强调茶庭收束',
+    });
 
-    expect(prompt).toContain('规则化空间关系');
-    expect(prompt).toContain('- 西侧以竹林和景墙形成竹影障景。');
-    expect(prompt).not.toContain('User image direction:');
-  });
-
-  it('appends custom image direction after the generated garden prompt', () => {
-    const prompt = buildImagePrompt(plan, parameters, '  cinematic dusk lighting, ink wash texture  ');
-
-    expect(prompt).toContain('苏式庭院景观概念方案：书香亭榭方案');
-    expect(prompt).toContain('User image direction:');
-    expect(prompt).toContain('cinematic dusk lighting, ink wash texture');
+    expect(prompt).toContain('Use the provided annotated site image as the primary constraint');
+    expect(prompt).toContain('场地解析 JSON');
+    expect(prompt).toContain('"mainEntrance": "西南侧"');
+    expect(prompt).toContain('water ratio 45%');
+    expect(prompt).toContain('曲径通幽');
+    expect(prompt).toContain('强调茶庭收束');
+    expect(prompt).not.toContain('SVG');
   });
 
   it('uses reference images for image-to-image generation when provided', () => {

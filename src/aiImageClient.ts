@@ -1,5 +1,6 @@
 import type { GenerationError } from './domain/project';
-import type { GardenParameters, GardenPlan } from './gardenGenerator';
+import type { GardenParameters } from './gardenGenerator';
+import type { SiteAnalysisData } from './siteAnalysis';
 
 export type AiImageMode = 'generate' | 'edit';
 
@@ -25,44 +26,42 @@ export interface BuildAiImageRequestInput {
   currentImageUrl?: string | null;
 }
 
-export function buildGardenImagePrompt(plan: GardenPlan, parameters: GardenParameters) {
+export interface SiteImagePromptInput {
+  projectName: string;
+  siteAnalysis: SiteAnalysisData;
+  parameters: GardenParameters;
+  customDirection: string;
+}
+
+export function buildSiteImagePrompt({ projectName, siteAnalysis, parameters, customDirection }: SiteImagePromptInput) {
   const focal = {
-    pond: '水院',
-    rockery: '叠山',
-    pavilion: '亭榭',
+    pond: 'water courtyard',
+    rockery: 'rockery garden',
+    pavilion: 'pavilion court',
   }[parameters.focalPoint];
 
   const building = {
-    classic: '典雅厅堂',
-    compact: '紧凑小筑',
-    scholar: '书斋园居',
+    classic: 'classic Suzhou hall',
+    compact: 'compact courtyard building',
+    scholar: 'scholar garden studio',
   }[parameters.buildingStyle];
 
   const promptLines = [
-    `苏式庭院景观概念方案：${plan.name}`,
-    'Create a refined top-down landscape concept plan, not a photorealistic perspective render.',
-    `Core scene: ${focal}, building style: ${building}.`,
-    `Spatial parameters: courtyard scale ${parameters.courtyardScale}%, water ratio ${parameters.waterRatio}%, rock density ${parameters.rockDensity}%, planting density ${parameters.plantingDensity}%, path curvature ${parameters.pathCurvature}%.`,
-    'Include whitewashed walls, dark tiled roofs, moon gate, winding stone path, pond, Taihu rocks, pavilion, bamboo, pine, maple, lotus, and subtle annotations.',
-    'Style: elegant Suzhou classical garden masterplan, muted ink-and-mineral palette, clean composition, architecture-friendly presentation board.',
+    `Suzhou garden concept generation for project: ${projectName}.`,
+    'Use the provided annotated site image as the primary constraint. Preserve the parcel boundary, building footprint, main entrance, and marked landscape direction.',
+    'Generate a refined top-down landscape concept plan, not a photorealistic perspective render.',
+    `场地解析 JSON:\n${JSON.stringify(siteAnalysis, null, 2)}`,
+    `Generation controls: courtyard scale ${parameters.courtyardScale}%, water ratio ${parameters.waterRatio}%, rock density ${parameters.rockDensity}%, planting density ${parameters.plantingDensity}%, path curvature ${parameters.pathCurvature}%, focal space ${focal}, building style ${building}.`,
+    'Suzhou garden rules: 曲径通幽, 入口障景, 借景, 对景, 框景, 漏景, 叠石理水, 小中见大, 粉墙黛瓦, 月洞门, 水院展开, 茶庭收束.',
+    'Visual style: architecture presentation board, delicate ink-and-mineral palette, readable plan annotations, calm professional composition.',
   ];
 
-  if (plan.ruleExplanations?.length) {
-    promptLines.push('规则化空间关系：', ...plan.ruleExplanations.map((explanation) => `- ${explanation.summary}`));
+  const trimmedDirection = customDirection.trim();
+  if (trimmedDirection) {
+    promptLines.push(`User image direction:\n${trimmedDirection}`);
   }
 
   return promptLines.join('\n');
-}
-
-export function buildImagePrompt(plan: GardenPlan, parameters: GardenParameters, customDirection: string) {
-  const basePrompt = buildGardenImagePrompt(plan, parameters);
-  const trimmedDirection = customDirection.trim();
-
-  if (!trimmedDirection) {
-    return basePrompt;
-  }
-
-  return `${basePrompt}\nUser image direction:\n${trimmedDirection}`;
 }
 
 export function buildAiImageRequest({ mode, prompt, referenceImageUrl, currentImageUrl }: BuildAiImageRequestInput): AiImageRequest {
