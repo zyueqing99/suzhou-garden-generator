@@ -4,197 +4,74 @@ import { createDefaultProject } from '../domain/project';
 import { GardenWorkspace, getMapEraseAction } from './GardenWorkspace';
 
 describe('GardenWorkspace', () => {
-  it('renders the second-version workspace regions from the prototype', () => {
-    const project = createDefaultProject({ now: '2026-05-04T10:00:00.000Z', seed: 31, name: '第二版方案' });
+  it('渲染场地图标注驱动的工作台标签，并移除 SVG 预览流程', () => {
+    const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 41, name: 'AI 标注方案' });
     const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
 
-    expect(markup).toContain('场地解析');
-    expect(markup).toContain('需求确认');
-    expect(markup).toContain('园林规则');
-    expect(markup).toContain('方案生成');
-    expect(markup).toContain('方案预览');
-    expect(markup).toContain('综合平面图');
-    expect(markup).toContain('SVG平面');
-    expect(markup).toContain('方案解释');
-    expect(markup).toContain('输出内容');
+    expect(markup).toContain('场地标注');
+    expect(markup).toContain('生成方案');
+    expect(markup).toContain('方案说明');
+    expect(markup).toContain('上传场地图');
+    expect(markup).toContain('标注工具');
+    expect(markup).toContain('生成控制');
+    expect(markup).not.toContain(['S', 'V', 'G', '平面'].join(''));
+    expect(markup).not.toContain(['导出', ' S', 'V', 'G'].join(''));
+    expect(markup).not.toContain(['规则方案', '基线预览'].join(''));
   });
 
-  it('renders the active project and fallback preview controls', () => {
-    const project = createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 11, name: '留园水院' });
+  it('在右侧主窗口中渲染上传后的放大场地图', () => {
+    const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 42, name: '大图标注' });
+    const markup = renderToStaticMarkup(
+      <GardenWorkspace
+        project={{
+          ...project,
+          siteImage: { name: 'site.png', url: 'data:image/png;base64,abc' },
+        }}
+        onProjectChange={vi.fn()}
+        onGenerationAdded={vi.fn()}
+      />,
+    );
+
+    const stageStart = markup.indexOf('aria-label="放大场地图标注');
+    const controlsStart = markup.indexOf('aria-label="左侧生成控制"');
+
+    expect(stageStart).toBeGreaterThan(-1);
+    expect(controlsStart).toBeGreaterThan(-1);
+    expect(markup.slice(stageStart)).toContain('当前上传的场地图');
+    expect(markup.slice(stageStart)).toContain('site-markup-overlay');
+  });
+
+  it('渲染生成方案标签、方案说明标签和 PNG/JSON 导出入口', () => {
+    const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 44, name: '说明导出' });
     const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
 
-    expect(markup).toContain('留园水院');
-    expect(markup).toContain('生成 AI 图像');
+    expect(markup).toContain('生成方案');
+    expect(markup).toContain('方案说明');
+    expect(markup).toContain('导出 PNG');
     expect(markup).toContain('导出 JSON');
-    expect(markup).toContain('规则方案基线预览');
+    expect(markup).not.toContain('编辑当前图像');
+    expect(markup).not.toContain(['导出', ' S', 'V', 'G'].join(''));
   });
 
-  it('renders site image upload, markup tools, analysis data, and editable requirements', () => {
-    const project = createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 18, name: '地块推演' });
-    const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
-
-    expect(markup).toContain('上传地块图');
-    expect(markup).toContain('绘制地块边界');
-    expect(markup).toContain('绘制建筑轮廓');
-    expect(markup).toContain('标记主入口');
-    expect(markup).toContain('标记建筑主观景面');
-    expect(markup).toContain('场地解析数据');
-    expect(markup).toContain('需求清单');
-    expect(markup).toContain('功能需求');
-    expect(markup).toContain('植物倾向');
-  });
-
-  it('does not show an older generation error when the newest generation succeeded', () => {
-    const project = createDefaultProject({ now: '2026-05-04T12:20:00.000Z', seed: 33, name: '成功覆盖失败' });
+  it('完成关键标注后启用生成方案按钮', () => {
+    const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 43, name: '生成方案' });
     const markup = renderToStaticMarkup(
       <GardenWorkspace
         project={{
           ...project,
-          generations: [
-            {
-              id: 'success',
-              projectId: project.id,
-              createdAt: '2026-05-04T12:22:00.000Z',
-              mode: 'generate',
-              status: 'succeeded',
-              prompt: 'test prompt',
-              provider: 'vectorengine',
-              model: 'gpt-image-2',
-              imageUrl: 'https://example.com/image.png',
-            },
-            {
-              id: 'missing-key',
-              projectId: project.id,
-              createdAt: '2026-05-04T12:21:00.000Z',
-              mode: 'generate',
-              status: 'failed',
-              prompt: 'test prompt',
-              provider: 'vectorengine',
-              model: 'gpt-image-2',
-              error: {
-                code: 'missing_api_key',
-                message: 'Missing VECTOR_ENGINE_API_KEY on local proxy server.',
-                retryable: false,
-              },
-            },
-          ],
-        }}
-        onProjectChange={vi.fn()}
-        onGenerationAdded={vi.fn()}
-      />,
-    );
-
-    expect(markup).not.toContain('Missing VECTOR_ENGINE_API_KEY');
-  });
-
-  it('renders site markup first and keeps AI and SVG previews below the confirmation area', () => {
-    const project = createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 21, name: '布局调整' });
-    const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
-
-    expect(markup.indexOf('地块图标记工作区')).toBeLessThan(markup.indexOf('场地解析与需求确认'));
-    expect(markup.indexOf('场地解析与需求确认')).toBeLessThan(markup.indexOf('AI 图像结果'));
-    expect(markup.indexOf('场地解析与需求确认')).toBeLessThan(markup.indexOf('规则方案基线预览'));
-  });
-
-  it('renders site analysis labels in Chinese instead of raw data keys', () => {
-    const project = createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 23, name: '解析展示' });
-    const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
-
-    expect(markup).toContain('地块边界');
-    expect(markup).toContain('建筑轮廓');
-    expect(markup).toContain('主入口');
-    expect(markup).toContain('建筑主观景面');
-    expect(markup).toContain('相邻界面');
-    expect(markup).toContain('借景方向');
-    expect(markup).toContain('需遮挡方向');
-    expect(markup).not.toContain('siteBoundary');
-    expect(markup).not.toContain('buildingFootprint');
-  });
-
-  it('marks boundary editing as the active site tool and explains canvas editing', () => {
-    const project = createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 22, name: '边界编辑' });
-    const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
-
-    expect(markup).toContain('aria-pressed="true"');
-    expect(markup).toContain('在地块图上点击添加边界点');
-    expect(markup.match(/class="tool-button/g)).toHaveLength(4);
-    expect(markup).toContain('绘制建筑轮廓');
-    expect(markup).toContain('标记主入口');
-    expect(markup).toContain('标记建筑主观景面');
-  });
-
-  it('renders all site tool switches inside the site markup workspace', () => {
-    const project = createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 25, name: '画布工具' });
-    const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
-    const workspaceStart = markup.indexOf('aria-label="地块图标记工作区"');
-    const analysisStart = markup.indexOf('aria-label="场地解析与需求确认"');
-    const workspaceMarkup = markup.slice(workspaceStart, analysisStart);
-
-    expect(workspaceMarkup.match(/class="tool-button/g)).toHaveLength(4);
-    expect(workspaceMarkup).toContain('绘制地块边界');
-    expect(workspaceMarkup).toContain('绘制建筑轮廓');
-    expect(workspaceMarkup).toContain('标记主入口');
-    expect(workspaceMarkup).toContain('标记建筑主观景面');
-  });
-
-  it('keeps site markup tools and uploaded map preview in one place only', () => {
-    const project = createDefaultProject({ now: '2026-05-04T11:30:00.000Z', seed: 32, name: '去重布局' });
-    const markup = renderToStaticMarkup(
-      <GardenWorkspace
-        project={{
-          ...project,
-          siteImage: { name: 'site.png', url: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E' },
-        }}
-        onProjectChange={vi.fn()}
-        onGenerationAdded={vi.fn()}
-      />,
-    );
-
-    expect(markup.match(/class="tool-button/g)).toHaveLength(4);
-    expect(markup.match(/class="site-canvas/g)).toHaveLength(1);
-    expect(markup).not.toContain('class="reference-preview"');
-  });
-
-  it('keeps confirmed site boundary drawing open for more polygon points', () => {
-    const project = createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 24, name: '边界锁定' });
-    const markup = renderToStaticMarkup(
-      <GardenWorkspace
-        project={{
-          ...project,
-          siteImage: { name: 'site.png', url: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E' },
+          siteImage: { name: 'site.png', url: 'data:image/png;base64,abc' },
           siteMarkup: {
             boundary: [
               { x: 10, y: 10 },
-              { x: 80, y: 10 },
-              { x: 80, y: 80 },
+              { x: 90, y: 10 },
+              { x: 90, y: 90 },
             ],
-            buildingFootprint: [],
-          },
-        }}
-        onProjectChange={vi.fn()}
-        onGenerationAdded={vi.fn()}
-      />,
-    );
-
-    expect(markup).toContain('在地块图上点击继续添加边界点，系统会自动闭合为地块多边形。');
-    expect(markup).toContain('擦除地块边界');
-    expect(markup).toContain('<polygon points="10,10 80,10 80,80" class="site-boundary-line"></polygon>');
-  });
-
-  it('closes confirmed building footprint drawing as a polygon like the site boundary', () => {
-    const project = createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 27, name: '建筑轮廓闭合' });
-    const markup = renderToStaticMarkup(
-      <GardenWorkspace
-        project={{
-          ...project,
-          siteImage: { name: 'site.png', url: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E' },
-          siteMarkup: {
-            boundary: [],
             buildingFootprint: [
-              { x: 20, y: 20 },
-              { x: 60, y: 20 },
-              { x: 60, y: 55 },
+              { x: 30, y: 20 },
+              { x: 70, y: 20 },
+              { x: 70, y: 40 },
             ],
+            mainEntrance: { kind: 'mainEntrance', point: { x: 18, y: 82 } },
           },
         }}
         onProjectChange={vi.fn()}
@@ -202,37 +79,21 @@ describe('GardenWorkspace', () => {
       />,
     );
 
-    expect(markup).toContain('<polygon points="20,20 60,20 60,55" class="site-building-line"></polygon>');
+    expect(markup).toContain('生成方案');
+    expect(markup).toContain('擦除地块边界');
+    expect(markup).not.toContain('disabled="">生成方案</button>');
   });
 
-  it('shows a map-local erase boundary action once the site boundary is confirmed', () => {
-    const project = createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 26, name: '边界擦除' });
-    const markup = renderToStaticMarkup(
-      <GardenWorkspace
-        project={{
-          ...project,
-          siteImage: { name: 'site.png', url: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E' },
-          siteMarkup: {
-            boundary: [
-              { x: 10, y: 10 },
-              { x: 80, y: 10 },
-              { x: 80, y: 80 },
-            ],
-            buildingFootprint: [],
-          },
-        }}
-        onProjectChange={vi.fn()}
-        onGenerationAdded={vi.fn()}
-      />,
-    );
-    const workspaceStart = markup.indexOf('aria-label="地块图标记工作区"');
-    const analysisStart = markup.indexOf('aria-label="场地解析与需求确认"');
-    const workspaceMarkup = markup.slice(workspaceStart, analysisStart);
+  it('使用景观方向作为用户可见文案', () => {
+    const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 45, name: '景观方向' });
+    const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
 
-    expect(workspaceMarkup).toContain('擦除地块边界');
+    expect(markup).toContain('标记景观方向');
+    expect(markup).toContain('景观方向');
+    expect(markup).not.toContain('标记建筑主观景面');
   });
 
-  it('creates a map-local erase building footprint action once the building footprint is confirmed', () => {
+  it('为当前工具创建本地擦除动作', () => {
     expect(
       getMapEraseAction('buildingFootprint', {
         boundary: [],
@@ -245,6 +106,17 @@ describe('GardenWorkspace', () => {
     ).toEqual({
       tool: 'buildingFootprint',
       label: '擦除建筑轮廓',
+    });
+
+    expect(
+      getMapEraseAction('mainViewSide', {
+        boundary: [],
+        buildingFootprint: [],
+        mainViewSide: { kind: 'mainViewSide', point: { x: 60, y: 55 } },
+      }),
+    ).toEqual({
+      tool: 'mainViewSide',
+      label: '重新标记景观方向',
     });
   });
 });
