@@ -1,38 +1,38 @@
-# AI Site Markup Generation Implementation Plan
+# 场地图标注驱动 AI 方案生成实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给自动化执行者：** 必须使用 `superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans` 按任务逐步执行。本计划使用复选框（`- [ ]`）跟踪步骤。
 
-**Goal:** Replace the SVG-centered workflow with a site-image markup workflow that sends an annotated site image, site analysis JSON, generation controls, and Suzhou garden rules to `gpt-image-2`.
+**目标：** 删除 SVG 中间流程，改成“放大场地图标注 → 截取带标注图片 → 组合场地解析 JSON、生成控制和苏州园林规则 → 调用 `gpt-image-2` 出图”的主流程。
 
-**Architecture:** Keep the existing React/Vite app and local project repository. Move the generation source from `GardenPlan`/`GardenPreview` to `SiteMarkup` plus a deterministic Canvas capture module, a site-image prompt builder, and a local explanation generator.
+**架构：** 保留现有 React/Vite 应用和本地项目存储。生成来源从 `GardenPlan` / `GardenPreview` 切换为 `SiteMarkup`、Canvas 标注截图、场地图 prompt 构建器和本地方案说明生成器。
 
-**Tech Stack:** React 19, TypeScript, Vite, Vitest, browser Canvas API, existing VectorEngine image proxy.
-
----
-
-## File Structure
-
-- Modify `src/siteAnalysis.ts`: keep the current data shape, rename user-facing meaning from `mainViewSide` to landscape direction in labels and tests, and keep normalized point data as the source of truth.
-- Create `src/siteMarkupCapture.ts`: draw the uploaded site image plus markup overlay into a PNG data URL for `gpt-image-2` reference input.
-- Create `src/planExplanation.ts`: generate local plan explanation sections from `SiteAnalysisData`, `GardenParameters`, and project name.
-- Modify `src/aiImageClient.ts`: remove `GardenPlan` prompt dependency and add `buildSiteImagePrompt`.
-- Modify `src/exporters.ts`: remove SVG export helpers and add data URL image export.
-- Modify `src/components/GardenWorkspace.tsx`: remove SVG preview flow; add right-side tabs for `场地标注`、`生成方案`、`方案说明`; generate from annotated site image.
-- Modify `src/components/GardenWorkspace.test.tsx`: replace SVG assertions with site-markup workflow assertions.
-- Modify `src/aiImageClient.test.ts`, `src/siteAnalysis.test.ts`, and add `src/siteMarkupCapture.test.ts`, `src/planExplanation.test.ts`.
-- Modify `docs/architecture/overview.md`: update data flow to match the new AI-first workflow.
+**技术栈：** React 19、TypeScript、Vite、Vitest、浏览器 Canvas API、现有 VectorEngine 图像代理。
 
 ---
 
-### Task 1: Add Annotated Site Image Capture
+## 文件结构
 
-**Files:**
-- Create: `src/siteMarkupCapture.ts`
-- Test: `src/siteMarkupCapture.test.ts`
+- 修改 `src/siteAnalysis.ts`：继续使用现有 `siteMarkup` 数据结构，用户可见语义从“建筑主观景面”调整为“景观方向”。
+- 新建 `src/siteMarkupCapture.ts`：把上传场地图和标注覆盖层绘制成 PNG data URL，用作 `gpt-image-2` 参考图。
+- 新建 `src/planExplanation.ts`：根据 `SiteAnalysisData`、`GardenParameters` 和项目名称生成本地方案说明。
+- 修改 `src/aiImageClient.ts`：删除对 `GardenPlan` prompt 的依赖，新增 `buildSiteImagePrompt`。
+- 修改 `src/exporters.ts`：删除 SVG 导出工具，新增 data URL 图片导出。
+- 修改 `src/components/GardenWorkspace.tsx`：删除 SVG 预览流程，右侧改成 `场地标注 / 生成方案 / 方案说明` 三个标签页，并从带标注场地图生成 AI 图。
+- 修改 `src/components/GardenWorkspace.test.tsx`：删除 SVG 断言，改为覆盖场地图标注工作流。
+- 修改 `src/aiImageClient.test.ts`、`src/siteAnalysis.test.ts`，新增 `src/siteMarkupCapture.test.ts`、`src/planExplanation.test.ts`。
+- 修改 `docs/architecture/overview.md`：把架构数据流更新为新的 AI 优先流程。
 
-- [ ] **Step 1: Write the failing tests**
+---
 
-Create `src/siteMarkupCapture.test.ts`:
+### 任务 1：新增带标注场地图截图模块
+
+**文件：**
+- 新建：`src/siteMarkupCapture.ts`
+- 测试：`src/siteMarkupCapture.test.ts`
+
+- [ ] **步骤 1：写失败测试**
+
+新建 `src/siteMarkupCapture.test.ts`：
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -57,7 +57,7 @@ const markup: SiteMarkup = {
 };
 
 describe('siteMarkupCapture', () => {
-  it('builds an overlay svg from normalized markup coordinates', () => {
+  it('从归一化标注坐标生成覆盖层 SVG', () => {
     const svg = buildSiteMarkupSvg(markup, { width: 1000, height: 600 });
 
     expect(svg).toContain('<svg');
@@ -67,7 +67,7 @@ describe('siteMarkupCapture', () => {
     expect(svg).toContain('景观方向');
   });
 
-  it('creates a serializable generation payload from image, markup, and analysis', () => {
+  it('生成可序列化的场地图生成载荷', () => {
     const payload = createAnnotatedSiteImagePayload({
       imageUrl: 'data:image/png;base64,abc',
       markup,
@@ -82,19 +82,19 @@ describe('siteMarkupCapture', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests and verify they fail**
+- [ ] **步骤 2：运行测试并确认失败**
 
-Run:
+运行：
 
 ```bash
 npm test -- src/siteMarkupCapture.test.ts
 ```
 
-Expected: FAIL because `src/siteMarkupCapture.ts` does not exist.
+预期：失败，因为 `src/siteMarkupCapture.ts` 还不存在。
 
-- [ ] **Step 3: Implement the capture helpers**
+- [ ] **步骤 3：实现截图辅助模块**
 
-Create `src/siteMarkupCapture.ts`:
+新建 `src/siteMarkupCapture.ts`：
 
 ```ts
 import type { SiteMarkup, SitePoint } from './siteAnalysis';
@@ -252,17 +252,17 @@ async function loadImage(url: string): Promise<HTMLImageElement> {
 }
 ```
 
-- [ ] **Step 4: Run the tests and verify they pass**
+- [ ] **步骤 4：运行测试并确认通过**
 
-Run:
+运行：
 
 ```bash
 npm test -- src/siteMarkupCapture.test.ts
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add src/siteMarkupCapture.ts src/siteMarkupCapture.test.ts
@@ -271,15 +271,15 @@ git commit -m "feat: add annotated site image capture"
 
 ---
 
-### Task 2: Add Local Plan Explanation Generator
+### 任务 2：新增本地方案说明生成器
 
-**Files:**
-- Create: `src/planExplanation.ts`
-- Test: `src/planExplanation.test.ts`
+**文件：**
+- 新建：`src/planExplanation.ts`
+- 测试：`src/planExplanation.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **步骤 1：写失败测试**
 
-Create `src/planExplanation.test.ts`:
+新建 `src/planExplanation.test.ts`：
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -308,7 +308,7 @@ const siteAnalysis: SiteAnalysisData = {
 };
 
 describe('planExplanation', () => {
-  it('builds fixed local explanation sections from site analysis and controls', () => {
+  it('根据场地解析和生成控制生成固定栏目说明', () => {
     const explanation = buildPlanExplanation({
       projectName: '苏式庭院方案',
       siteAnalysis,
@@ -333,19 +333,17 @@ describe('planExplanation', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests and verify they fail**
-
-Run:
+- [ ] **步骤 2：运行测试并确认失败**
 
 ```bash
 npm test -- src/planExplanation.test.ts
 ```
 
-Expected: FAIL because `src/planExplanation.ts` does not exist.
+预期：失败，因为 `src/planExplanation.ts` 还不存在。
 
-- [ ] **Step 3: Implement the explanation generator**
+- [ ] **步骤 3：实现说明生成器**
 
-Create `src/planExplanation.ts`:
+新建 `src/planExplanation.ts`：
 
 ```ts
 import type { GardenParameters } from './gardenGenerator';
@@ -416,17 +414,15 @@ const styleLabel: Record<GardenParameters['buildingStyle'], string> = {
 };
 ```
 
-- [ ] **Step 4: Run the tests and verify they pass**
-
-Run:
+- [ ] **步骤 4：运行测试并确认通过**
 
 ```bash
 npm test -- src/planExplanation.test.ts
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add src/planExplanation.ts src/planExplanation.test.ts
@@ -435,15 +431,15 @@ git commit -m "feat: add local plan explanation generator"
 
 ---
 
-### Task 3: Replace GardenPlan Prompt With Site-Image Prompt
+### 任务 3：用场地图 prompt 替换旧规则方案 prompt
 
-**Files:**
-- Modify: `src/aiImageClient.ts`
-- Test: `src/aiImageClient.test.ts`
+**文件：**
+- 修改：`src/aiImageClient.ts`
+- 测试：`src/aiImageClient.test.ts`
 
-- [ ] **Step 1: Write the failing prompt tests**
+- [ ] **步骤 1：写失败测试**
 
-Replace the first three prompt tests in `src/aiImageClient.test.ts` with:
+把 `src/aiImageClient.test.ts` 前三个 prompt 测试替换为 `buildSiteImagePrompt` 测试。保留后面的请求构造、响应解析和错误解析测试。
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -472,7 +468,7 @@ const siteAnalysis: SiteAnalysisData = {
 };
 
 describe('aiImageClient', () => {
-  it('builds a prompt from annotated site image constraints', () => {
+  it('从带标注场地图约束构建图像生成 prompt', () => {
     const prompt = buildSiteImagePrompt({
       projectName: '苏式庭院方案',
       siteAnalysis,
@@ -488,30 +484,25 @@ describe('aiImageClient', () => {
     expect(prompt).toContain('强调茶庭收束');
     expect(prompt).not.toContain('SVG');
   });
+});
 ```
 
-Keep the existing request, extraction, and error tests below this new test.
-
-- [ ] **Step 2: Run the tests and verify they fail**
-
-Run:
+- [ ] **步骤 2：运行测试并确认失败**
 
 ```bash
 npm test -- src/aiImageClient.test.ts
 ```
 
-Expected: FAIL because `buildSiteImagePrompt` is not exported.
+预期：失败，因为 `buildSiteImagePrompt` 还没有导出。
 
-- [ ] **Step 3: Update the prompt builder**
+- [ ] **步骤 3：实现新的 prompt 构建器**
 
-In `src/aiImageClient.ts`, remove imports of `GardenPlan`, remove `buildGardenImagePrompt`, remove the old `buildImagePrompt`, and add:
+在 `src/aiImageClient.ts` 中删除 `GardenPlan` 导入、`buildGardenImagePrompt` 和旧 `buildImagePrompt`，新增：
 
 ```ts
 import type { GenerationError } from './domain/project';
 import type { GardenParameters } from './gardenGenerator';
 import type { SiteAnalysisData } from './siteAnalysis';
-
-export type AiImageMode = 'generate' | 'edit';
 
 export interface SiteImagePromptInput {
   projectName: string;
@@ -552,19 +543,17 @@ export function buildSiteImagePrompt({ projectName, siteAnalysis, parameters, cu
 }
 ```
 
-Keep `buildAiImageRequest`, `requestAiImage`, and response helpers unchanged.
+保留 `buildAiImageRequest`、`requestAiImage` 和响应解析函数。
 
-- [ ] **Step 4: Run the tests and verify they pass**
-
-Run:
+- [ ] **步骤 4：运行测试并确认通过**
 
 ```bash
 npm test -- src/aiImageClient.test.ts
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add src/aiImageClient.ts src/aiImageClient.test.ts
@@ -573,14 +562,14 @@ git commit -m "feat: build prompts from annotated site images"
 
 ---
 
-### Task 4: Replace SVG Export With Image Data URL Export
+### 任务 4：用图片 data URL 导出替换 SVG 导出
 
-**Files:**
-- Modify: `src/exporters.ts`
+**文件：**
+- 修改：`src/exporters.ts`
 
-- [ ] **Step 1: Write a focused implementation change**
+- [ ] **步骤 1：替换导出工具**
 
-Replace `src/exporters.ts` with:
+把 `src/exporters.ts` 改为：
 
 ```ts
 export function downloadImageDataUrl(dataUrl: string, filename: string) {
@@ -610,35 +599,33 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 ```
 
-- [ ] **Step 2: Run typecheck and verify downstream references fail**
-
-Run:
+- [ ] **步骤 2：运行类型检查并确认旧引用失败**
 
 ```bash
 npm run typecheck
 ```
 
-Expected: FAIL in `GardenWorkspace.tsx` while it still imports `downloadSvg` and `downloadPng`.
+预期：失败，`GardenWorkspace.tsx` 仍在引用 `downloadSvg` 和 `downloadPng`。
 
-- [ ] **Step 3: Leave the failure for Task 5**
+- [ ] **步骤 3：暂不单独提交**
 
-Do not commit this task alone if typecheck fails. Carry it into Task 5 and commit once `GardenWorkspace.tsx` is updated.
+这个任务会导致类型检查失败，不单独提交。继续任务 5，等 `GardenWorkspace.tsx` 一起改完后再提交。
 
 ---
 
-### Task 5: Rebuild GardenWorkspace Around Right-Side Tabs
+### 任务 5：把 `GardenWorkspace` 重构为右侧三标签工作台
 
-**Files:**
-- Modify: `src/components/GardenWorkspace.tsx`
-- Modify: `src/exporters.ts`
-- Test: `src/components/GardenWorkspace.test.tsx`
+**文件：**
+- 修改：`src/components/GardenWorkspace.tsx`
+- 修改：`src/exporters.ts`
+- 测试：`src/components/GardenWorkspace.test.tsx`
 
-- [ ] **Step 1: Replace workspace tests with new business-flow assertions**
+- [ ] **步骤 1：替换工作台测试**
 
-Update the first two tests in `src/components/GardenWorkspace.test.tsx` to assert the new tabs and absence of SVG:
+把 `src/components/GardenWorkspace.test.tsx` 中断言旧 SVG 流程的测试改为：
 
 ```ts
-it('renders the site-markup driven workspace tabs without SVG preview flow', () => {
+it('渲染场地图标注驱动的工作台标签，并移除 SVG 预览流程', () => {
   const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 41, name: 'AI 标注方案' });
   const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
 
@@ -652,7 +639,7 @@ it('renders the site-markup driven workspace tabs without SVG preview flow', () 
   expect(markup).not.toContain('规则方案基线预览');
 });
 
-it('renders uploaded site image in the right-side markup stage', () => {
+it('在右侧主窗口中渲染上传后的放大场地图', () => {
   const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 42, name: '大图标注' });
   const markup = renderToStaticMarkup(
     <GardenWorkspace
@@ -675,21 +662,19 @@ it('renders uploaded site image in the right-side markup stage', () => {
 });
 ```
 
-Remove or rewrite tests that assert `规则方案基线预览`, `SVG平面`, and SVG preview ordering.
+删除或重写所有断言 `规则方案基线预览`、`SVG平面`、SVG 预览顺序的测试。
 
-- [ ] **Step 2: Run the workspace tests and verify they fail**
-
-Run:
+- [ ] **步骤 2：运行测试并确认失败**
 
 ```bash
 npm test -- src/components/GardenWorkspace.test.tsx
 ```
 
-Expected: FAIL because the component still renders the SVG workflow.
+预期：失败，因为组件还在渲染 SVG 流程。
 
-- [ ] **Step 3: Update imports and top-level state**
+- [ ] **步骤 3：更新导入和顶层状态**
 
-In `src/components/GardenWorkspace.tsx`, remove imports of `downloadPng`, `downloadSvg`, `GardenPreview`, `generateGardenPlan`, `createRuleLayoutContext`, and `hasUsableSiteContext`. Add:
+在 `src/components/GardenWorkspace.tsx` 中删除 `downloadPng`、`downloadSvg`、`GardenPreview`、`generateGardenPlan`、`createRuleLayoutContext`、`hasUsableSiteContext` 的导入，新增：
 
 ```ts
 import { buildAiImageRequest, buildSiteImagePrompt, normalizeUnknownGenerationError, requestAiImage } from '../aiImageClient';
@@ -700,7 +685,7 @@ import type { GardenParameters } from '../gardenGenerator';
 import type { ReactNode, RefObject } from 'react';
 ```
 
-Replace the SVG ref and status state with:
+用下面状态替换 SVG ref 和旧状态：
 
 ```ts
 const [activeTab, setActiveTab] = useState<'markup' | 'result' | 'explanation'>('markup');
@@ -712,9 +697,9 @@ const [activeTool, setActiveTool] = useState<SiteMarkupTool>('boundary');
 const siteCanvasRef = useRef<HTMLDivElement | null>(null);
 ```
 
-- [ ] **Step 4: Replace generation logic**
+- [ ] **步骤 4：替换生成逻辑**
 
-Replace `handleGenerate` and `handleAiGenerate` with:
+删除旧 `handleGenerate` 和 `handleAiGenerate`，改为：
 
 ```ts
 const explanation = useMemo(
@@ -792,11 +777,9 @@ const handleGenerate = async () => {
 };
 ```
 
-Remove the old edit-current-image action from the visible flow.
+- [ ] **步骤 5：统一“景观方向”文案**
 
-- [ ] **Step 5: Rename the user-facing landscape direction labels**
-
-Update the `mainViewSide` labels in `GardenWorkspace.tsx` so the UI says 景观方向 while the stored field name remains compatible:
+把 `mainViewSide` 的用户可见文案改为“景观方向”，字段名保留兼容：
 
 ```ts
 const activeToolLabel: Record<SiteMarkupTool, string> = {
@@ -813,13 +796,6 @@ const activeToolHint: Record<SiteMarkupTool, string> = {
   mainViewSide: '在放大场地图上点击一次标记主要景观方向。',
 };
 
-const redrawActionLabel: Record<SiteMarkupTool, string> = {
-  boundary: '重新绘制地块边界',
-  buildingFootprint: '重新绘制建筑轮廓',
-  mainEntrance: '重新标记主入口',
-  mainViewSide: '重新标记景观方向',
-};
-
 const siteAnalysisLabels: Record<keyof SiteAnalysisData, string> = {
   siteBoundary: '地块边界',
   buildingFootprint: '建筑轮廓',
@@ -831,15 +807,15 @@ const siteAnalysisLabels: Record<keyof SiteAnalysisData, string> = {
 };
 ```
 
-Also change the fourth `ToolButton` label to:
+第四个工具按钮改为：
 
 ```tsx
 <ToolButton icon={<ScanLine size={17} aria-hidden="true" />} label="标记景观方向" active={activeTool === 'mainViewSide'} onClick={() => onToolChange('mainViewSide')} />
 ```
 
-- [ ] **Step 6: Replace JSX with left controls and right tabs**
+- [ ] **步骤 6：替换 JSX 为左侧控制和右侧标签页**
 
-Keep `TopAppBar` and `ProcessStepper`, then replace the inner `.workspace-grid` contents with a left control aside and right main stage:
+保留 `TopAppBar` 和 `ProcessStepper`，把 `.workspace-grid` 内部替换为左侧控制区和右侧主窗口。右侧必须只通过 `场地标注` 标签执行标注：
 
 ```tsx
 <div className="workspace-grid site-generation-grid">
@@ -875,10 +851,10 @@ Keep `TopAppBar` and `ProcessStepper`, then replace the inner `.workspace-grid` 
         seed={project.seed}
         canGenerate={canGenerate}
         isGenerating={isGeneratingImage}
+        canExportPng={Boolean(aiImageUrl)}
         onParameterChange={updateParameter}
         onGenerate={() => void handleGenerate()}
         onExportPng={() => aiImageUrl && downloadImageDataUrl(aiImageUrl, filename)}
-        canExportPng={Boolean(aiImageUrl)}
         onExportJson={() => downloadJson({ project, siteAnalysis, generationControls: project.parameters, explanation }, filename)}
       />
       {latestError ? <ErrorNotice error={latestError} /> : null}
@@ -904,151 +880,19 @@ Keep `TopAppBar` and `ProcessStepper`, then replace the inner `.workspace-grid` 
 </div>
 ```
 
-- [ ] **Step 7: Add the small workspace subcomponents**
+- [ ] **步骤 7：新增工作台小组件**
 
-Add these helper components in `GardenWorkspace.tsx` below `ProcessStepper`:
+在 `GardenWorkspace.tsx` 中新增 `WorkspaceTabs`、`SiteImageUploader`、`SiteMarkupStage`、`GeneratedResultStage`、`ExplanationStage`。这些组件的职责如下：
 
-```tsx
-function WorkspaceTabs({
-  activeTab,
-  onTabChange,
-}: {
-  activeTab: 'markup' | 'result' | 'explanation';
-  onTabChange: (tab: 'markup' | 'result' | 'explanation') => void;
-}) {
-  const tabs = [
-    ['markup', '场地标注'],
-    ['result', '生成方案'],
-    ['explanation', '方案说明'],
-  ] as const;
+- `WorkspaceTabs`：渲染 `场地标注 / 生成方案 / 方案说明` 三个标签。
+- `SiteImageUploader`：处理左侧上传和移除。
+- `SiteMarkupStage`：只在右侧放大场地图中接收点击标注。
+- `GeneratedResultStage`：展示 AI 方案图或生成状态。
+- `ExplanationStage`：展示场地解析 JSON 和本地方案说明。
 
-  return (
-    <div className="workspace-tabs" role="tablist" aria-label="右侧主窗口标签">
-      {tabs.map(([tab, label]) => (
-        <button className={activeTab === tab ? 'active' : undefined} type="button" role="tab" aria-selected={activeTab === tab} key={tab} onClick={() => onTabChange(tab)}>
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-}
+- [ ] **步骤 8：更新 `GenerationControls` 参数并移除 SVG 导出按钮**
 
-function SiteImageUploader({
-  siteImage,
-  onUpload,
-  onRemove,
-}: {
-  siteImage: GardenProject['siteImage'];
-  onUpload: (file: File | undefined) => void;
-  onRemove: () => void;
-}) {
-  if (siteImage) {
-    return (
-      <div className="reference-file-row">
-        <span>{siteImage.name}</span>
-        <button type="button" onClick={onRemove}>
-          <X size={16} aria-hidden="true" />
-          移除
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <label className="upload-dropzone">
-      <ImagePlus size={22} aria-hidden="true" />
-      <span>上传场地图</span>
-      <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => onUpload(event.target.files?.[0])} />
-    </label>
-  );
-}
-
-function SiteMarkupStage({
-  siteImage,
-  siteMarkup,
-  activeTool,
-  siteCanvasRef,
-  onUpload,
-  onCanvasClick,
-  onCanvasKeyDown,
-}: {
-  siteImage: GardenProject['siteImage'];
-  siteMarkup: SiteMarkup;
-  activeTool: SiteMarkupTool;
-  siteCanvasRef: RefObject<HTMLDivElement | null>;
-  onUpload: (file: File | undefined) => void;
-  onCanvasClick: (event: React.MouseEvent<HTMLDivElement>) => void;
-  onCanvasKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
-}) {
-  if (!siteImage) {
-    return (
-      <div className="empty-site-stage">
-        <ImagePlus size={30} aria-hidden="true" />
-        <label>
-          上传场地图
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => onUpload(event.target.files?.[0])} />
-        </label>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={siteCanvasRef}
-      className="site-canvas site-canvas-large"
-      role="button"
-      tabIndex={0}
-      aria-label={`放大场地图标注：${activeToolLabel[activeTool]}`}
-      onClick={onCanvasClick}
-      onKeyDown={onCanvasKeyDown}
-    >
-      <img src={siteImage.url} alt="当前上传的场地图" />
-      <SiteMarkupOverlay markup={siteMarkup} />
-    </div>
-  );
-}
-
-function GeneratedResultStage({ imageUrl, status }: { imageUrl: string | null; status: string }) {
-  return (
-    <section className="generated-result-stage" aria-label="生成方案结果">
-      {imageUrl ? <img src={imageUrl} alt="AI 生成的苏式庭院方案图" /> : <p>{status}</p>}
-    </section>
-  );
-}
-
-function ExplanationStage({
-  explanation,
-  siteAnalysis,
-  status,
-}: {
-  explanation: PlanExplanationSection[];
-  siteAnalysis: SiteAnalysisData;
-  status: string;
-}) {
-  return (
-    <section className="explanation-stage" aria-label="方案说明">
-      <p>{status}</p>
-      <DataCard title="场地解析 JSON" data={siteAnalysis} />
-      <div className="explanation-list">
-        {explanation.map((item) => (
-          <details open key={item.title}>
-            <summary>
-              <Layers size={17} aria-hidden="true" />
-              {item.title}
-              <ChevronDown size={15} aria-hidden="true" />
-            </summary>
-            <p>{item.body}</p>
-          </details>
-        ))}
-      </div>
-    </section>
-  );
-}
-```
-
-- [ ] **Step 8: Update `GenerationControls` props and remove SVG export button**
-
-Change the component signature to include `canGenerate`, `isGenerating`, `canExportPng`, `onExportPng`, and `onExportJson`, and remove `onExportSvg`. The final action buttons should be:
+`GenerationControls` 接收 `canGenerate`、`isGenerating`、`canExportPng`、`onExportPng`、`onExportJson`，删除 `onExportSvg`。底部按钮应为：
 
 ```tsx
 <button className="primary-action" type="button" onClick={onGenerate} disabled={!canGenerate || isGenerating}>
@@ -1065,17 +909,15 @@ Change the component signature to include `canGenerate`, `isGenerating`, `canExp
 </button>
 ```
 
-- [ ] **Step 9: Run focused tests**
-
-Run:
+- [ ] **步骤 9：运行聚焦测试**
 
 ```bash
 npm test -- src/components/GardenWorkspace.test.tsx src/aiImageClient.test.ts src/siteMarkupCapture.test.ts src/planExplanation.test.ts
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 10: Commit**
+- [ ] **步骤 10：提交**
 
 ```bash
 git add src/components/GardenWorkspace.tsx src/components/GardenWorkspace.test.tsx src/exporters.ts
@@ -1084,15 +926,15 @@ git commit -m "feat: replace svg workflow with site image tabs"
 
 ---
 
-### Task 6: Update Styles for the New Workspace
+### 任务 6：更新新工作台样式
 
-**Files:**
-- Modify: `src/styles.css`
-- Test: `src/components/GardenWorkspace.test.tsx`
+**文件：**
+- 修改：`src/styles.css`
+- 测试：`src/components/GardenWorkspace.test.tsx`
 
-- [ ] **Step 1: Remove SVG-specific styles and add tabbed site stage styles**
+- [ ] **步骤 1：删除 SVG 专属样式并新增场地图标签页样式**
 
-In `src/styles.css`, remove styles that only support `.plan-stage`, `.plan-canvas`, `.garden-svg`, `.svg-label`, `.svg-note`, `.ai-image-panel`, and `.view-toggle` if they are no longer referenced. Add:
+删除只服务 `.plan-stage`、`.plan-canvas`、`.garden-svg`、`.svg-label`、`.svg-note`、`.ai-image-panel`、`.view-toggle` 的样式。新增：
 
 ```css
 .site-generation-grid {
@@ -1191,18 +1033,16 @@ In `src/styles.css`, remove styles that only support `.plan-stage`, `.plan-canva
 }
 ```
 
-- [ ] **Step 2: Run tests and typecheck**
-
-Run:
+- [ ] **步骤 2：运行测试和类型检查**
 
 ```bash
 npm test -- src/components/GardenWorkspace.test.tsx
 npm run typecheck
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 3: Commit**
+- [ ] **步骤 3：提交**
 
 ```bash
 git add src/styles.css
@@ -1211,64 +1051,60 @@ git commit -m "style: support site image generation workspace"
 
 ---
 
-### Task 7: Remove Dead SVG User Flow References
+### 任务 7：清理用户可见的 SVG 流程引用
 
-**Files:**
-- Modify: `src/components/ErrorNotice.tsx`
-- Modify: `docs/architecture/overview.md`
-- Test: `src/components/GardenWorkspace.test.tsx`
+**文件：**
+- 修改：`src/components/ErrorNotice.tsx`
+- 修改：`docs/architecture/overview.md`
+- 测试：`src/components/GardenWorkspace.test.tsx`
 
-- [ ] **Step 1: Update retry copy**
+- [ ] **步骤 1：更新错误提示文案**
 
-Change `src/components/ErrorNotice.tsx` retry copy from:
+把 `src/components/ErrorNotice.tsx` 中：
 
 ```tsx
 <span>{error.retryable ? '可以稍后重试，规则方案仍可导出。' : '请调整配置或请求后再试。'}</span>
 ```
 
-to:
+改为：
 
 ```tsx
 <span>{error.retryable ? '可以稍后重试，场地图标注和生成参数已保留。' : '请调整配置或请求后再试。'}</span>
 ```
 
-- [ ] **Step 2: Update architecture overview**
+- [ ] **步骤 2：更新架构文档**
 
-Replace the data flow in `docs/architecture/overview.md` with:
+把 `docs/architecture/overview.md` 的数据流改为：
 
 ```md
-Data flow:
+数据流：
 
-1. UI stores the uploaded site image and normalized `SiteMarkup`.
-2. `createSiteAnalysis(markup)` derives structured site constraints.
-3. `captureAnnotatedSiteImage` renders the uploaded site image plus markup overlay into a PNG data URL.
-4. `buildSiteImagePrompt` combines site analysis, generation controls, custom direction, and built-in Suzhou garden rules.
-5. `requestAiImage` posts to `/api/images/generate`.
-6. The proxy calls VectorEngine and returns a normalized image response.
-7. The frontend stores the generation record and renders local plan explanation sections.
+1. UI 保存上传的场地图和归一化后的 `SiteMarkup`。
+2. `createSiteAnalysis(markup)` 推导结构化场地约束。
+3. `captureAnnotatedSiteImage` 把上传场地图和标注覆盖层绘制成 PNG data URL。
+4. `buildSiteImagePrompt` 组合场地解析、生成控制、自定义方向和内置苏州园林规则。
+5. `requestAiImage` 请求 `/api/images/generate`。
+6. 代理服务调用 VectorEngine，并返回标准化图像响应。
+7. 前端保存生成记录，并渲染本地方案说明栏目。
 ```
 
-- [ ] **Step 3: Run a repository search for user-visible SVG flow**
-
-Run:
+- [ ] **步骤 3：搜索残留的用户可见 SVG 流程**
 
 ```bash
 rg -n "SVG平面|导出 SVG|规则方案基线预览|规则方案仍可导出|GardenPreview|downloadSvg|downloadPng\\(" src docs/architecture
 ```
 
-Expected: no matches in `src/`; historical spec files under `docs/superpowers/specs/2026-05-03-*` and `2026-05-04-*` may still mention old SVG decisions.
+预期：`src/` 中没有匹配；历史规格文档保留旧决策说明，不作为本次清理范围。
 
-- [ ] **Step 4: Run focused tests**
-
-Run:
+- [ ] **步骤 4：运行聚焦测试**
 
 ```bash
 npm test -- src/components/GardenWorkspace.test.tsx
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add src/components/ErrorNotice.tsx docs/architecture/overview.md
@@ -1277,69 +1113,61 @@ git commit -m "docs: update architecture for site markup generation"
 
 ---
 
-### Task 8: Full Verification and Cleanup
+### 任务 8：完整验证和收尾
 
-**Files:**
-- Modify only files required by failing checks.
+**文件：**
+- 只修改验证失败所必需的文件。
 
-- [ ] **Step 1: Run all tests**
-
-Run:
+- [ ] **步骤 1：运行全部测试**
 
 ```bash
 npm test
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 2: Run typecheck**
-
-Run:
+- [ ] **步骤 2：运行类型检查**
 
 ```bash
 npm run typecheck
 ```
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 3: Run production build**
-
-Run:
+- [ ] **步骤 3：运行生产构建**
 
 ```bash
 npm run build
 ```
 
-Expected: PASS and `vite build` completes.
+预期：通过，`vite build` 完成。
 
-- [ ] **Step 4: Start the dev server**
-
-Run:
+- [ ] **步骤 4：启动开发服务器**
 
 ```bash
 npm run dev -- --port 5173
 ```
 
-Expected: Vite serves the app at `http://localhost:5173/`. If port 5173 is occupied, rerun with `--port 5174`.
+预期：Vite 在 `http://localhost:5173/` 提供服务。如果 5173 被占用，改用 `--port 5174`。
 
-- [ ] **Step 5: Manual browser check**
+- [ ] **步骤 5：手动浏览器检查**
 
-Open the served app and verify:
+确认以下行为：
 
-- Upload control is visible.
-- Right-side tabs show `场地标注`、`生成方案`、`方案说明`.
-- Uploaded site image appears in the right-side large markup area.
-- The four markup tools render and can be selected.
-- `生成方案` is disabled until required markup exists.
-- No user-visible SVG preview or SVG export button appears.
+- 页面能看到上传场地图入口。
+- 右侧标签为 `场地标注`、`生成方案`、`方案说明`。
+- 上传后的场地图出现在右侧放大标注区域。
+- 四个标注工具可见且可切换。
+- 必需标注未完成时，`生成方案` 不可用。
+- 页面不再出现用户可见的 SVG 预览和 SVG 导出按钮。
 
-- [ ] **Step 6: Commit final fixes**
+- [ ] **步骤 6：提交最终修复**
 
-If verification required changes:
+如果验证过程中做了修复：
 
 ```bash
 git add src docs
 git commit -m "fix: complete site markup generation verification"
 ```
 
-If verification required no changes, do not create an empty commit.
+如果没有额外修改，不创建空提交。
