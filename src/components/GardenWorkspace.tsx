@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import type { KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { buildAiImageRequest, buildSiteImagePrompt, normalizeUnknownGenerationError, requestAiImage } from '../aiImageClient';
+import { buildAiImageRequest, buildSiteImagePrompt, buildTextImagePrompt, normalizeUnknownGenerationError, requestAiImage } from '../aiImageClient';
 import type { GardenProject, ImageGeneration } from '../domain/project';
 import { downloadImageDataUrl, downloadJson } from '../exporters';
 import type { GardenParameters } from '../gardenGenerator';
@@ -62,7 +62,8 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
   );
   const latestGeneration = project.generations[0];
   const latestError = latestGeneration?.status === 'failed' ? latestGeneration.error : undefined;
-  const canGenerate = Boolean(project.siteImage) && siteMarkup.boundary.length >= 3 && siteMarkup.buildingFootprint.length >= 3 && Boolean(siteMarkup.mainEntrance);
+  const hasCompleteSiteMarkup = siteMarkup.boundary.length >= 3 && siteMarkup.buildingFootprint.length >= 3 && Boolean(siteMarkup.mainEntrance);
+  const canGenerate = !project.siteImage || hasCompleteSiteMarkup;
   const activeSiteEditHint = getActiveToolHint(activeTool, siteMarkup);
   const mapEraseAction = getMapEraseAction(activeTool, siteMarkup);
   const filename = `suzhou-garden-${project.seed}`;
@@ -141,28 +142,32 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
   };
 
   const handleGenerate = async () => {
-    if (!project.siteImage || !canGenerate) {
-      setStatus('请先上传场地图，并确认地块边界、建筑轮廓和主入口。');
+    if (project.siteImage && !hasCompleteSiteMarkup) {
+      setStatus('请先确认地块边界、建筑轮廓和主入口，或移除场地图后直接生成文本方案。');
       setActiveTab('markup');
       return;
     }
 
     setIsGeneratingImage(true);
-    setAiStatus('正在截取带标注场地图并生成 AI 方案...');
+    setAiStatus(project.siteImage ? '正在截取带标注场地图并生成 AI 方案...' : '正在根据默认参数生成 AI 方案...');
     setActiveTab('result');
 
-    const prompt = buildSiteImagePrompt({
+    const promptInput = {
       projectName: project.name,
       siteAnalysis,
       parameters: project.parameters,
       customDirection: project.customPrompt,
-    });
+    };
+    let prompt = buildTextImagePrompt(promptInput);
 
     try {
-      const annotatedImageUrl = await captureAnnotatedSiteImage({
-        imageUrl: project.siteImage.url,
-        markup: siteMarkup,
-      });
+      const annotatedImageUrl = project.siteImage
+        ? await captureAnnotatedSiteImage({
+            imageUrl: project.siteImage.url,
+            markup: siteMarkup,
+          })
+        : null;
+      prompt = annotatedImageUrl ? buildSiteImagePrompt(promptInput) : prompt;
       const request = buildAiImageRequest({
         mode: 'generate',
         prompt,

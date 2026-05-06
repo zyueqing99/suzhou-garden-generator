@@ -94,7 +94,7 @@ describe('GardenWorkspace', () => {
     const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 46, name: '缺项提示' });
     const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
 
-    expect(markup).toContain('aria-disabled="true"');
+    expect(markup).toContain('aria-disabled="false"');
     expect(markup).not.toContain('disabled="">生成方案</button>');
   });
 

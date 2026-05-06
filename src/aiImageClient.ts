@@ -33,6 +33,37 @@ export interface SiteImagePromptInput {
   customDirection: string;
 }
 
+export function buildTextImagePrompt({ projectName, siteAnalysis, parameters, customDirection }: SiteImagePromptInput) {
+  const focal = {
+    pond: 'water courtyard',
+    rockery: 'rockery garden',
+    pavilion: 'pavilion court',
+  }[parameters.focalPoint];
+
+  const building = {
+    classic: 'classic Suzhou hall',
+    compact: 'compact courtyard building',
+    scholar: 'scholar garden studio',
+  }[parameters.buildingStyle];
+
+  const promptLines = [
+    `Suzhou garden concept generation for project: ${projectName}.`,
+    'Generate a refined top-down landscape concept plan, not a photorealistic perspective render.',
+    `Generation controls: courtyard scale ${parameters.courtyardScale}%, water ratio ${parameters.waterRatio}%, rock density ${parameters.rockDensity}%, planting density ${parameters.plantingDensity}%, path curvature ${parameters.pathCurvature}%, focal space ${focal}, building style ${building}.`,
+    `Known site analysis JSON:\n${JSON.stringify(siteAnalysis, null, 2)}`,
+    'Include whitewashed walls, dark tiled roofs, moon gate, winding stone path, pond, Taihu rocks, pavilion, bamboo, pine, maple, lotus, and readable plan annotations.',
+    'Suzhou garden rules: 曲径通幽, 入口障景, 借景, 对景, 框景, 漏景, 叠石理水, 小中见大, 粉墙黛瓦, 月洞门, 水院展开, 茶庭收束.',
+    'Visual style: architecture presentation board, delicate ink-and-mineral palette, readable plan annotations, calm professional composition.',
+  ];
+
+  const trimmedDirection = customDirection.trim();
+  if (trimmedDirection) {
+    promptLines.push(`User image direction:\n${trimmedDirection}`);
+  }
+
+  return promptLines.join('\n');
+}
+
 export function buildSiteImagePrompt({ projectName, siteAnalysis, parameters, customDirection }: SiteImagePromptInput) {
   const focal = {
     pond: 'water courtyard',
