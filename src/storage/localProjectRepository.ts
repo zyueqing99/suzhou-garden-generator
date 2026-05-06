@@ -42,7 +42,13 @@ function readProjects(storageKey: string): GardenProject[] {
 function sanitizeProject(project: GardenProject): GardenProject {
   return {
     ...project,
-    generations: project.generations.filter((generation) => generation.error?.code !== 'missing_api_key'),
+    generations: project.generations.filter((generation) => {
+      if (generation.error?.code === 'missing_api_key') {
+        return false;
+      }
+
+      return !generation.error?.message.includes('rule-generated concept plan');
+    }),
   };
 }
 

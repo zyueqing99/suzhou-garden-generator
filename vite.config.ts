@@ -10,7 +10,9 @@ function vectorEngineImageApi(): Plugin {
     name: 'vectorengine-image-api',
     configureServer(server) {
       server.middlewares.use('/api/images/generate', async (request, response) => {
-        const { handleImageRequest } = (await import('./server/vectorEngineImageHandler.mjs')) as VectorEngineImageHandlerModule;
+        const handlerUrl = new URL('./server/vectorEngineImageHandler.mjs', import.meta.url);
+        handlerUrl.searchParams.set('dev', String(Date.now()));
+        const { handleImageRequest } = (await import(handlerUrl.href)) as VectorEngineImageHandlerModule;
         await handleImageRequest(request, response);
       });
     },

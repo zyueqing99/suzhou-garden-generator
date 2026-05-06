@@ -120,4 +120,48 @@ describe('createLocalProjectRepository', () => {
     const loaded = await repository.load(project.id);
     expect(loaded?.generations.map((generation) => generation.id)).toEqual(['timeout-failure']);
   });
+
+  it('drops stale pre-refactor generation failure messages from saved projects', async () => {
+    const repository = createLocalProjectRepository('test-projects');
+    const project: GardenProject = {
+      ...createDefaultProject({ now: '2026-05-02T10:00:00.000Z', seed: 11, name: 'Refactored Project' }),
+      generations: [
+        {
+          id: 'old-rule-failure',
+          projectId: 'garden-11',
+          createdAt: '2026-05-02T10:02:00.000Z',
+          mode: 'generate',
+          status: 'failed',
+          prompt: 'test prompt',
+          provider: 'vectorengine',
+          model: 'gpt-image-2',
+          error: {
+            code: 'unknown_error',
+            message: 'Image generation failed. The rule-generated concept plan is still available.',
+            retryable: true,
+          },
+        },
+        {
+          id: 'new-timeout',
+          projectId: 'garden-11',
+          createdAt: '2026-05-02T10:01:00.000Z',
+          mode: 'generate',
+          status: 'failed',
+          prompt: 'test prompt',
+          provider: 'vectorengine',
+          model: 'gpt-image-2',
+          error: {
+            code: 'provider_timeout',
+            message: 'Image generation timed out. You can retry; the site markup and generation controls are preserved.',
+            retryable: true,
+          },
+        },
+      ],
+    };
+
+    await repository.save(project);
+
+    const loaded = await repository.load(project.id);
+    expect(loaded?.generations.map((generation) => generation.id)).toEqual(['new-timeout']);
+  });
 });
