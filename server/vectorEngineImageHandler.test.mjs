@@ -27,7 +27,7 @@ describe('VectorEngine image handler', () => {
   it('maps timeout errors to structured retryable proxy errors', () => {
     expect(normalizeProxyError(new Error('VectorEngine request timed out after 300s'))).toEqual({
       code: 'provider_timeout',
-      message: 'Image generation timed out. You can retry, or export the rule-generated concept plan.',
+      message: 'Image generation timed out. You can retry; the site markup and generation controls are preserved.',
       retryable: true,
     });
   });

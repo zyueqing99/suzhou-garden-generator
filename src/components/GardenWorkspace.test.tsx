@@ -90,6 +90,14 @@ describe('GardenWorkspace', () => {
     expect(markup).not.toContain('disabled="">生成方案</button>');
   });
 
+  it('缺少关键标注时仍允许点击生成方案以触发缺项提示', () => {
+    const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 46, name: '缺项提示' });
+    const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
+
+    expect(markup).toContain('aria-disabled="true"');
+    expect(markup).not.toContain('disabled="">生成方案</button>');
+  });
+
   it('使用景观方向作为用户可见文案', () => {
     const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 45, name: '景观方向' });
     const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);

@@ -217,14 +217,14 @@ export function normalizeProxyError(error) {
   if (message.includes('timed out')) {
     return {
       code: 'provider_timeout',
-      message: 'Image generation timed out. You can retry, or export the rule-generated concept plan.',
+      message: 'Image generation timed out. You can retry; the site markup and generation controls are preserved.',
       retryable: true,
     };
   }
 
   return {
     code: 'unknown_error',
-    message: 'Image generation failed. The rule-generated concept plan is still available.',
+    message: 'Image generation failed. The site markup and generation controls are preserved.',
     retryable: true,
   };
 }

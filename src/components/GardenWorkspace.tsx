@@ -516,11 +516,11 @@ function GenerationControls({
       <div className="seed-row">
         <span>随机种子</span>
         <strong>{seed}</strong>
-        <button type="button" onClick={onGenerate} aria-label="刷新随机种子" disabled={!canGenerate || isGenerating}>
+        <button type="button" onClick={onGenerate} aria-label="刷新随机种子" disabled={isGenerating}>
           <RefreshCw size={14} aria-hidden="true" />
         </button>
       </div>
-      <button className="primary-action" type="button" onClick={onGenerate} disabled={!canGenerate || isGenerating}>
+      <button className="primary-action" type="button" onClick={onGenerate} disabled={isGenerating} aria-disabled={!canGenerate || isGenerating}>
         <WandSparkles size={18} aria-hidden="true" />
         {isGenerating ? '生成中' : '生成方案'}
       </button>
