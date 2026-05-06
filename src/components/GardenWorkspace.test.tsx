@@ -41,12 +41,18 @@ describe('GardenWorkspace', () => {
     expect(markup.slice(stageStart)).toContain('site-markup-overlay');
   });
 
-  it('渲染生成方案标签、方案说明标签和 PNG/JSON 导出入口', () => {
+  it('将方案说明渲染到右侧边栏，并保留 PNG/JSON 导出入口', () => {
     const project = createDefaultProject({ now: '2026-05-05T10:00:00.000Z', seed: 44, name: '说明导出' });
     const markup = renderToStaticMarkup(<GardenWorkspace project={project} onProjectChange={vi.fn()} onGenerationAdded={vi.fn()} />);
+    const tablistStart = markup.indexOf('aria-label="右侧主窗口标签"');
+    const sidebarStart = markup.indexOf('aria-label="右侧方案说明边栏"');
 
     expect(markup).toContain('生成方案');
     expect(markup).toContain('方案说明');
+    expect(sidebarStart).toBeGreaterThan(-1);
+    expect(sidebarStart).toBeGreaterThan(tablistStart);
+    expect(markup.slice(tablistStart, sidebarStart)).not.toContain('方案说明');
+    expect(markup.slice(sidebarStart)).toContain('总体布局说明');
     expect(markup).toContain('导出 PNG');
     expect(markup).toContain('导出 JSON');
     expect(markup).not.toContain('编辑当前图像');

@@ -43,7 +43,7 @@ interface GardenWorkspaceProps {
   onGenerationAdded: (generation: ImageGeneration) => void;
 }
 
-type WorkspaceTab = 'markup' | 'result' | 'explanation';
+type WorkspaceTab = 'markup' | 'result';
 
 export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }: GardenWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('markup');
@@ -271,8 +271,11 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
             />
           ) : null}
           {activeTab === 'result' ? <GeneratedResultStage imageUrl={aiImageUrl} status={aiStatus} /> : null}
-          {activeTab === 'explanation' ? <ExplanationStage explanation={explanation} siteAnalysis={siteAnalysis} status={status} /> : null}
         </section>
+
+        <aside className="explanation-sidebar" aria-label="右侧方案说明边栏">
+          <ExplanationStage explanation={explanation} siteAnalysis={siteAnalysis} status={status} />
+        </aside>
       </div>
     </section>
   );
@@ -336,7 +339,6 @@ function WorkspaceTabs({ activeTab, onTabChange }: { activeTab: WorkspaceTab; on
   const tabs = [
     ['markup', '场地标注'],
     ['result', '生成方案'],
-    ['explanation', '方案说明'],
   ] as const;
 
   return (

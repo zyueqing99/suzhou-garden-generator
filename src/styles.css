@@ -315,7 +315,8 @@ p {
 
 .workspace-controls,
 .plan-stage,
-.explanation-panel {
+.explanation-panel,
+.explanation-sidebar {
   min-width: 0;
   background: rgba(255, 253, 248, 0.9);
   border: 1px solid #ded6c8;
@@ -323,7 +324,8 @@ p {
 }
 
 .workspace-controls,
-.explanation-panel {
+.explanation-panel,
+.explanation-sidebar {
   display: grid;
   align-content: start;
   gap: 12px;
@@ -954,7 +956,7 @@ input[type="range"] {
 }
 
 .site-generation-grid {
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 320px minmax(0, 1fr) 340px;
 }
 
 .site-stage {
@@ -1020,6 +1022,10 @@ input[type="range"] {
   overflow: auto;
 }
 
+.explanation-sidebar .explanation-stage {
+  padding: 0;
+}
+
 .empty-site-stage {
   place-items: center;
   align-content: center;
@@ -1069,6 +1075,10 @@ input[type="range"] {
     grid-template-columns: 270px minmax(0, 1fr);
   }
 
+  .site-generation-grid {
+    grid-template-columns: 280px minmax(0, 1fr) 300px;
+  }
+
   .explanation-panel {
     grid-column: 1 / -1;
     grid-template-columns: minmax(0, 1fr) 320px;
@@ -1116,6 +1126,10 @@ input[type="range"] {
   .explanation-panel {
     grid-template-columns: 1fr;
   }
+
+  .explanation-sidebar {
+    min-height: 420px;
+  }
 }
 
 @media (max-width: 620px) {
@@ -1123,6 +1137,7 @@ input[type="range"] {
   .workspace-controls,
   .plan-stage,
   .explanation-panel,
+  .explanation-sidebar,
   .top-app-bar {
     padding: 12px;
   }
