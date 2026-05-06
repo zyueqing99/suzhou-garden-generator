@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultProject } from '../domain/project';
-import { GardenWorkspace, getMapEraseAction } from './GardenWorkspace';
+import { GardenWorkspace, getMapEraseAction, resolveGenerationDisplayState } from './GardenWorkspace';
 
 describe('GardenWorkspace', () => {
   it('渲染场地图标注驱动的工作台标签，并移除 SVG 预览流程', () => {
@@ -131,6 +131,31 @@ describe('GardenWorkspace', () => {
     ).toEqual({
       tool: 'mainViewSide',
       label: '重新标记景观方向',
+    });
+  });
+
+  it('生成失败后保留失败原因作为生成方案页状态', () => {
+    expect(
+      resolveGenerationDisplayState([
+        {
+          id: 'failed-generation',
+          projectId: 'garden-47',
+          createdAt: '2026-05-05T10:00:00.000Z',
+          mode: 'generate',
+          status: 'failed',
+          prompt: 'test prompt',
+          provider: 'vectorengine',
+          model: 'gpt-image-2',
+          error: {
+            code: 'unknown_error',
+            message: 'AI 图像生成失败：供应商没有返回图片',
+            retryable: true,
+          },
+        },
+      ]),
+    ).toEqual({
+      imageUrl: null,
+      status: 'AI 图像生成失败：供应商没有返回图片',
     });
   });
 });

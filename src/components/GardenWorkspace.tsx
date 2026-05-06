@@ -48,8 +48,9 @@ type WorkspaceTab = 'markup' | 'result';
 export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }: GardenWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('markup');
   const [status, setStatus] = useState('请上传场地图并在右侧大图中完成标注');
-  const [aiImageUrl, setAiImageUrl] = useState<string | null>(project.generations.find((generation) => generation.imageUrl)?.imageUrl ?? null);
-  const [aiStatus, setAiStatus] = useState('AI 方案图尚未生成');
+  const initialGenerationDisplay = resolveGenerationDisplayState(project.generations);
+  const [aiImageUrl, setAiImageUrl] = useState<string | null>(initialGenerationDisplay.imageUrl);
+  const [aiStatus, setAiStatus] = useState(initialGenerationDisplay.status);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [activeTool, setActiveTool] = useState<SiteMarkupTool>('boundary');
   const siteCanvasRef = useRef<HTMLDivElement | null>(null);
@@ -67,12 +68,15 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
   const filename = `suzhou-garden-${project.seed}`;
 
   useEffect(() => {
-    const latestImageUrl = project.generations.find((generation) => generation.imageUrl)?.imageUrl ?? null;
-    setAiImageUrl(latestImageUrl);
-    setAiStatus(latestImageUrl ? '正在展示已保存的 AI 方案图' : 'AI 方案图尚未生成');
+    const generationDisplay = resolveGenerationDisplayState(project.generations);
+    setAiImageUrl(generationDisplay.imageUrl);
+    setAiStatus(generationDisplay.status);
+  }, [project.generations]);
+
+  useEffect(() => {
     setStatus(project.siteImage ? '请在右侧放大场地图中完成标注' : '请上传场地图并在右侧大图中完成标注');
     setActiveTab('markup');
-  }, [project.id, project.generations, project.siteImage]);
+  }, [project.id, project.siteImage]);
 
   const updateParameter = <K extends keyof GardenParameters>(key: K, value: GardenParameters[K]) => {
     onProjectChange({
@@ -145,6 +149,7 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
 
     setIsGeneratingImage(true);
     setAiStatus('正在截取带标注场地图并生成 AI 方案...');
+    setActiveTab('result');
 
     const prompt = buildSiteImagePrompt({
       projectName: project.name,
@@ -279,6 +284,22 @@ export function GardenWorkspace({ project, onProjectChange, onGenerationAdded }:
       </div>
     </section>
   );
+}
+
+export function resolveGenerationDisplayState(generations: ImageGeneration[]) {
+  const latestImageUrl = generations.find((generation) => generation.imageUrl)?.imageUrl ?? null;
+  if (latestImageUrl) {
+    return {
+      imageUrl: latestImageUrl,
+      status: '正在展示已保存的 AI 方案图',
+    };
+  }
+
+  const latestFailedGeneration = generations.find((generation) => generation.status === 'failed' && generation.error?.message);
+  return {
+    imageUrl: null,
+    status: latestFailedGeneration?.error?.message ?? 'AI 方案图尚未生成',
+  };
 }
 
 function TopAppBar({ onExport, canExport }: { onExport: () => void; canExport: boolean }) {
